@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use shared::{
-    extra::{anyhow, debug, unbounded, Receiver, Result, Sender, Vector2, Zero},
+    extra::{anyhow, debug, unbounded, Receiver, Result, Sender, Vector2, Zero, InnerSpace},
     util::{GetOrInsert, ThisOrThat},
     InnerModule, Module,
 };
@@ -43,7 +43,7 @@ impl Input {
         }
     }
 
-    pub(crate) fn early_process_frame(&mut self) {
+    pub(crate) fn process_frame(&mut self) {
         let actions = self.inputs.get_or_insert(InputType::MouseMotion, vec![]);
         for action in actions.iter() {
             self.actions
@@ -64,14 +64,8 @@ impl Input {
         };
     }
 
-    pub(crate) fn late_process_frame(&mut self) {
-        for (_, (info, _)) in self.actions.iter_mut() {
-            *info = InputInfo::None;
-        }
-    }
-
     pub(crate) fn process_input(
-        input: Module<Input>,
+        input: &Module<Input>,
         event: ThisOrThat<&WindowEvent, &DeviceEvent>,
     ) {
         match event {
@@ -126,17 +120,17 @@ impl Input {
         let name: String = name.into();
         debug!("Action added: {}", &name);
 
-        self.actions.insert(name.clone(), (InputInfo::None, vec![]));
         for input in inputs {
             self.inputs.get_or_insert(input, vec![]).push(name.clone());
         }
+        self.actions.insert(name, (InputInfo::None, vec![]));
     }
 
     pub fn add_actions(&mut self, actions: Vec<(impl Into<String>, Vec<InputType>)>) {
         for (name, inputs) in actions {
             let name: String = name.into();
             self.actions.insert(name.clone(), (InputInfo::None, vec![]));
-            self.add_action(name.clone(), inputs);
+            self.add_action(name, inputs);
         }
     }
 
@@ -149,6 +143,7 @@ impl Input {
             .get_or_insert(&name, (InputInfo::None, vec![]))
             .1
             .push(sender);
+        
         receiver
     }
 
@@ -157,6 +152,19 @@ impl Input {
             .get(&name.into())
             .ok_or(anyhow!("Action not found!"))
             .map(|t| t.0)
+    }
+
+    /// Mouse scroll or motion returns the magnitude squared
+    pub fn query_action_strength(&self, name: impl Into<String>) -> Result<f32> {
+        let input = self.query_action(name)?;
+        match input {
+            InputInfo::None => Ok(0.0),
+            InputInfo::Key(state) | InputInfo::MouseButton(state) => match state {
+                ElementState::Pressed => Ok(1.0),
+                ElementState::Released => Ok(0.0),
+            },
+            InputInfo::MouseScroll(delta) | InputInfo::MouseMotion(delta) => Ok(delta.normalize().magnitude2()),
+        }
     }
 }
 

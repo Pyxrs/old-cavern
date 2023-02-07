@@ -17,7 +17,7 @@ impl World {
 }
 
 impl InnerModule<()> for World {
-    fn run(module: Module<Self>, modules: ()) {
+    fn run(_module: Module<Self>, _modules: ()) {
         //
     }
 }

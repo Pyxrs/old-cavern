@@ -1,34 +1,36 @@
 use std::iter;
 
-use shared::extra::Deg;
+use shared::{extra::Vector3, Module};
 use wgpu::{InstanceDescriptor, Backends, util::DeviceExt};
 use winit::window::Window;
 
+use crate::config::Config;
+
 use self::{vertex::Vertex, uniforms::CameraUniform};
 
-use super::{texture::Texture, camera::{Projection, CameraController, Camera}};
+use super::{texture::Texture, camera::{CameraController, Camera}};
 
 mod uniforms;
 pub mod vertex;
 
 const VERTICES: &[Vertex] = &[
     Vertex {
-        position: [-0.5, 0.5, -10.0],
+        position: [-0.5, 0.5, 0.0],
         tex_coords: [0.0, 0.0],
         light: 0.0,
     }, // A
     Vertex {
-        position: [-0.5, -0.5, -10.0],
+        position: [-0.5, -0.5, 0.0],
         tex_coords: [0.0, 1.0],
         light: 0.25,
     }, // B
     Vertex {
-        position: [0.5, -0.5, -10.0],
+        position: [0.5, -0.5, 0.0],
         tex_coords: [1.0, 1.0],
         light: 0.5,
     }, // C
     Vertex {
-        position: [0.5, 0.5, -10.0],
+        position: [0.5, 0.5, 0.0],
         tex_coords: [1.0, 0.0],
         light: 0.75,
     }, // D
@@ -36,22 +38,22 @@ const VERTICES: &[Vertex] = &[
 
 
     Vertex {
-        position: [0.0, 0.5, -0.5 - 10.0],
+        position: [0.0, 0.5, -0.5],
         tex_coords: [0.0, 0.0],
         light: 0.0,
     }, // A
     Vertex {
-        position: [0.0, -0.5, -0.5 - 10.0],
+        position: [0.0, -0.5, -0.5],
         tex_coords: [0.0, 1.0],
         light: 0.25,
     }, // B
     Vertex {
-        position: [0.0, -0.5, 0.5 - 10.0],
+        position: [0.0, -0.5, 0.5],
         tex_coords: [1.0, 1.0],
         light: 0.5,
     }, // C
     Vertex {
-        position: [0.0, 0.5, 0.5 - 10.0],
+        position: [0.0, 0.5, 0.5],
         tex_coords: [1.0, 0.0],
         light: 0.75,
     }, // D
@@ -59,22 +61,22 @@ const VERTICES: &[Vertex] = &[
 
 
     Vertex {
-        position: [0.5, 0.0, -0.5 - 10.0],
+        position: [0.5, 0.0, -0.5],
         tex_coords: [0.0, 0.0],
         light: 0.0,
     }, // A
     Vertex {
-        position: [-0.5, 0.0, -0.5 - 10.0],
+        position: [-0.5, 0.0, -0.5],
         tex_coords: [0.0, 1.0],
         light: 0.25,
     }, // B
     Vertex {
-        position: [-0.5, 0.0, 0.5 - 10.0],
+        position: [-0.5, 0.0, 0.5],
         tex_coords: [1.0, 1.0],
         light: 0.5,
     }, // C
     Vertex {
-        position: [0.5, 0.0, 0.5 - 10.0],
+        position: [0.5, 0.0, 0.5],
         tex_coords: [1.0, 0.0],
         light: 0.75,
     }, // D
@@ -111,8 +113,8 @@ pub struct WindowSurface {
     num_indices: u32,
     diffuse_bind_group: wgpu::BindGroup,
     camera: Camera,
-    camera_controller: CameraController,
-    projection: Projection,
+    pub camera_controller: CameraController,
+    //projection: Projection,
     camera_uniform: CameraUniform,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
@@ -121,7 +123,7 @@ pub struct WindowSurface {
 }
 
 impl WindowSurface {
-    pub async fn new(window: Window) -> Self {
+    pub async fn new(window: Window, client_config: Module<Config>) -> Self {
         let size = window.inner_size();
 
         // The instance is a handle to our GPU
@@ -149,7 +151,7 @@ impl WindowSurface {
             .request_device(
                 &wgpu::DeviceDescriptor {
                     label: None,
-                    features: wgpu::Features::empty(),
+                    features: wgpu::Features::POLYGON_MODE_LINE,
                     limits: wgpu::Limits::default(),
                 },
                 None, // Trace path
@@ -168,8 +170,8 @@ impl WindowSurface {
         };
         surface.configure(&device, &config);
 
-        let diffuse_bytes = include_bytes!("happy-tree.png");
-        let diffuse_texture = Texture::from_bytes(&device, &queue, diffuse_bytes, "happy-tree.png").unwrap();
+        let diffuse_bytes = &client_config.read().unwrap().resources.1.0;
+        let diffuse_texture = Texture::from_bytes(&device, &queue, &diffuse_bytes, "happy-tree.png").unwrap();
 
         let texture_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -209,12 +211,19 @@ impl WindowSurface {
             label: Some("diffuse_bind_group"),
         });
 
-        let camera = Camera::new((0.0, 5.0, 10.0), Deg(-90.0), Deg(-20.0));
-        let projection = Projection::new(config.width, config.height, Deg(45.0), 0.1, 100.0);
-        let camera_controller = CameraController::new(4.0, 0.4);
+        let camera = Camera {
+            eye: (0.0, 5.0, 10.0).into(),
+            target: (0.0, 0.0, 0.0).into(),
+            up: Vector3::unit_y(),
+            aspect: config.width as f32 / config.height as f32,
+            fovy: 45.0,
+            znear: 0.1,
+            zfar: 100.0,
+        };
+        let camera_controller = CameraController::new(0.2);
 
         let mut camera_uniform = CameraUniform::new();
-        camera_uniform.update_view_proj(&camera, &projection);
+        camera_uniform.update_view_proj(&camera);
 
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Camera Buffer"),
@@ -248,7 +257,7 @@ impl WindowSurface {
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(client_config.read().unwrap().resources.0.0.clone().into()),
         });
 
         let depth_texture = Texture::create_depth_texture(&device, &config, "depth_texture");
@@ -287,7 +296,7 @@ impl WindowSurface {
                 cull_mode: Some(wgpu::Face::Back),
                 // Setting this to anything other than Fill requires Features::POLYGON_MODE_LINE
                 // or Features::POLYGON_MODE_POINT
-                polygon_mode: wgpu::PolygonMode::Fill,
+                polygon_mode: client_config.read().unwrap().debug.0,
                 // Requires Features::DEPTH_CLIP_CONTROL
                 unclipped_depth: false,
                 // Requires Features::CONSERVATIVE_RASTERIZATION
@@ -335,7 +344,6 @@ impl WindowSurface {
             diffuse_bind_group,
             camera,
             camera_controller,
-            projection,
             camera_buffer,
             camera_bind_group,
             camera_uniform,
@@ -350,18 +358,18 @@ impl WindowSurface {
 
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
         if new_size.width > 0 && new_size.height > 0 {
-            self.projection.resize(new_size.width, new_size.height);
             self.size = new_size;
             self.config.width = new_size.width;
             self.config.height = new_size.height;
             self.surface.configure(&self.device, &self.config);
+            self.camera.aspect = self.config.width as f32 / self.config.height as f32;
             self.depth_texture = Texture::create_depth_texture(&self.device, &self.config, "depth_texture");
         }
     }
 
     pub fn update(&mut self, delta: f32) {
-        self.camera_controller.update_camera(&mut self.camera, delta);
-        self.camera_uniform.update_view_proj(&self.camera, &self.projection);
+        self.camera_controller.update_camera(&mut self.camera);
+        self.camera_uniform.update_view_proj(&self.camera);
         self.queue.write_buffer(
             &self.camera_buffer,
             0,
@@ -389,9 +397,9 @@ impl WindowSurface {
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.1,
-                            g: 0.2,
-                            b: 0.3,
+                            r: 0.0,
+                            g: 0.0,
+                            b: 0.0,
                             a: 1.0,
                         }),
                         store: true,

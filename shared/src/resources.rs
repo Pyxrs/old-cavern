@@ -14,6 +14,12 @@ pub fn load_bytes(path: &str) -> Result<Vec<u8>> {
     Ok(contents)
 }
 
+pub fn load_string(path: &str) -> Result<String> {
+    let mut contents = String::new();
+    helpful_result(path, BufReader::new(load(path)?).read_to_string(&mut contents))?;
+    Ok(contents)
+}
+
 pub fn load_dir(path: &str) -> Result<ReadDir> {
     let dir = std::env::current_dir().unwrap().join(path);
     helpful_result(path, fs::read_dir(dir))

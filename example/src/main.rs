@@ -1,11 +1,11 @@
-use std::thread;
+use std::{thread, vec};
 
 use client::{
-    config::{Gamma, MeshingDistance},
+    config::{Gamma, MeshingDistance, Resources, Shader, Texture, Debug, PolygonMode},
     input::{InputType, Key},
 };
 use server::config::{LoadingDistance, SimulationDistance};
-use shared::extra::{LevelFilter, debug};
+use shared::{extra::LevelFilter, resources};
 use simple_logger::SimpleLogger;
 
 use crate::registry::register_features;
@@ -25,7 +25,10 @@ fn main() {
 
     // Server
     thread::spawn(|| { server::init(
-        server::config::Config(LoadingDistance(12), SimulationDistance(14)),
+        server::config::Config(
+            LoadingDistance(12),
+            SimulationDistance(14)
+        ),
         |server| {
             register_features(server.registry.write().unwrap());
         },
@@ -33,19 +36,28 @@ fn main() {
 
     // Client
     client::init(
-        client::config::Config(MeshingDistance(12), Gamma(1.0)),
+        client::config::Config {
+            resources: Resources(
+                Shader(resources::load_string("example/resources/shader.wgsl").unwrap()),
+                Texture(resources::load_bytes("example/resources/happy-tree.png").unwrap()),
+            ),
+            debug: Debug(
+                PolygonMode::Line,
+            ),
+            meshing_distance: MeshingDistance(12),
+            gamma: Gamma(1.0),
+        },
+        vec![
+            ("exit", vec![InputType::Key(Key::Escape)]),
+            ("forward", vec![InputType::Key(Key::W)]),
+            ("backward", vec![InputType::Key(Key::S)]),
+            ("left", vec![InputType::Key(Key::A)]),
+            ("right", vec![InputType::Key(Key::D)]),
+            ("up", vec![InputType::Key(Key::Space)]),
+            ("down", vec![InputType::Key(Key::LShift)]),
+        ],
         |client| {
-            debug!("WOW1");
             register_features(client.registry.write().unwrap());
-
-            debug!("WOW2");
-            client.input.write().unwrap().add_actions(vec![
-                ("exit", vec![InputType::Key(Key::Escape)]),
-                ("forward", vec![InputType::Key(Key::W)]),
-                ("backward", vec![InputType::Key(Key::S)]),
-                ("left", vec![InputType::Key(Key::A)]),
-                ("right", vec![InputType::Key(Key::D)]),
-            ]);
         },
     );
 }
