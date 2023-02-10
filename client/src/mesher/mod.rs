@@ -1,6 +1,6 @@
 use shared::InnerModule;
 
-mod quad;
+pub mod quad;
 
 struct Mesher {
     //

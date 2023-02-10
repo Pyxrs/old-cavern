@@ -7,11 +7,11 @@ pub struct Config{
     pub gamma: Gamma,
 }
 
-pub struct Resources(pub Shader, pub Texture);
+pub struct Resources(pub Shaders, pub Textures);
 
-pub struct Shader(pub String);
+pub struct Shaders(pub String);
 
-pub struct Texture(pub Vec<u8>);
+pub struct Textures(pub String);
 
 pub struct Debug(pub PolygonMode);
 

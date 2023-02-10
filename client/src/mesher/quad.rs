@@ -1,69 +1,64 @@
-use shared::{extra::Vector3, direction::Direction};
+use shared::{extra::{Vector3, Vector2}, direction::Direction, Module};
 
-use crate::window::surface::vertex::Vertex;
+use crate::{window::surface::vertex::Vertex, ClientRegistry};
 
 const TEXTURE_INCREMENT: f32 = 1.0 / 256.0;
 const SKY_INCREMENT: f32 = 1.0 / 6.0;
 
+const DIRECTION_LUT: [[(usize, i8); 2]; 6] = [
+    [(0, 1), (2, 1)],
+    [(0, -1), (2, -1)],
+    [(0, 1), (1, 1)],
+    [(0, -1), (1, -1)],
+    [(1, 1), (2, 1)],
+    [(1, -1), (2, -1)],
+];
+
+const TEMPLATE_LUT: [(i8, i8); 4] = [
+    (-1, 1),
+    (-1, -1),
+    (1, -1),
+    (1, 1),
+];
+
+#[derive(Debug)]
 pub struct Quad {
     pub vertices: [Vertex; 4],
-    pub indices: [u32; 6],
-}
-
-impl Quad {
-    fn new(vertices: [Vertex; 4], indices: [u32; 6]) -> Self {
-        Self { vertices, indices }
-    }
+    pub indices: [u16; 6],
 }
 
 pub fn block_quad(
-    id: u32,
-    index: u32,
+    _registry: &Module<ClientRegistry>,
+    _namespace: impl Into<String>,
+    _id: u32,
+    index: u16,
     direction: Direction,
     position: Vector3<f32>,
 ) -> Quad {
     //let block_type = crate::block_types::get(id);
     //let text_id = block_type.get_texture(direction);
     let text_id = 0;
-    let text_0: f32 = TEXTURE_INCREMENT * text_id as f32;
-    let text_1: f32 = TEXTURE_INCREMENT * (text_id + 1) as f32;
-    quad(text_0, text_1, index, direction, position, true)
+    let tex = Vector2::new(TEXTURE_INCREMENT * text_id as f32, TEXTURE_INCREMENT * (text_id + 1) as f32);
+    quad(position, 0.5, tex, index, direction, true)
 }
 
 pub fn sky_quad(
-    index: u32,
+    index: u16,
     direction: Direction,
     position: Vector3<f32>,
 ) -> Quad {
-    let text_0: f32 = SKY_INCREMENT * direction.get_id() as f32;
-    let text_1: f32 = SKY_INCREMENT * (direction.get_id() + 1) as f32;
-    quad(text_0, text_1, index, direction, position, false)
+    let tex = Vector2::new(SKY_INCREMENT * direction.get_id() as f32, SKY_INCREMENT * (direction.get_id() + 1) as f32);
+    quad(position, 0.5, tex, index, direction, false)
 }
 
 pub fn quad(
-    text_0: f32,
-    text_1: f32,
-    index: u32,
-    direction: Direction,
     position: Vector3<f32>,
-    lighting: bool,
+    size: f32,
+    tex_coords: Vector2<f32>, // TODO: Texture arrays
+    index: u16,
+    direction: Direction,
+    lighting: bool, // TODO: Actual lighting
 ) -> Quad {
-    let indices_f = [
-        0 + (index * 4),
-        1 + (index * 4),
-        2 + (index * 4),
-        2 + (index * 4),
-        1 + (index * 4),
-        3 + (index * 4),
-    ];
-    let indices_b = [
-        2 + (index * 4),
-        1 + (index * 4),
-        0 + (index * 4),
-        3 + (index * 4),
-        1 + (index * 4),
-        2 + (index * 4),
-    ];
 
     let light = if lighting {
         match direction {
@@ -78,79 +73,68 @@ pub fn quad(
         1.0
     };
 
-    let vertices_ud = [
+    let mut vertices = [
         Vertex {
-            position: [-0.5 + position.x, position.y, 0.5 + position.z],
-            tex_coords: [text_0, 1.0],
-            light
-        }, // A
+            position: [0.0, 0.0, 0.0],
+            tex_coords: [0.0, 0.0],
+            light,
+        },
         Vertex {
-            position: [0.5 + position.x, position.y, 0.5 + position.z],
-            tex_coords: [text_1, 1.0],
-            light
-        }, // B
+            position: [0.0, 0.0, 0.0],
+            tex_coords: [0.0, 1.0],
+            light,
+        },
         Vertex {
-            position: [-0.5 + position.x, position.y, -0.5 + position.z],
-            tex_coords: [text_0, 0.0],
-            light
-        }, // C
+            position: [0.0, 0.0, 0.0],
+            tex_coords: [1.0, 1.0],
+            light,
+        },
         Vertex {
-            position: [0.5 + position.x, position.y, -0.5 + position.z],
-            tex_coords: [text_1, 0.0],
-            light
-        }, // D
-    ];
-    let vertices_ns = [
-        Vertex {
-            position: [-0.5 + position.x, 0.5 + position.y, position.z],
-            tex_coords: [text_1, 0.0],
-            light
-        }, // A
-        Vertex {
-            position: [0.5 + position.x, 0.5 + position.y, position.z],
-            tex_coords: [text_0, 0.0],
-            light
-        }, // B
-        Vertex {
-            position: [-0.5 + position.x, -0.5 + position.y, position.z],
-            tex_coords: [text_1, 1.0],
-            light
-        }, // C
-        Vertex {
-            position: [0.5 + position.x, -0.5 + position.y, position.z],
-            tex_coords: [text_0, 1.0],
-            light
-        }, // D
-    ];
-    let vertices_we = [
-        Vertex {
-            position: [position.x, 0.5 + position.y, -0.5 + position.z],
-            tex_coords: [text_1, 0.0],
-            light
-        }, // A
-        Vertex {
-            position: [position.x, 0.5 + position.y, 0.5 + position.z],
-            tex_coords: [text_0, 0.0],
-            light
-        }, // B
-        Vertex {
-            position: [position.x, -0.5 + position.y, -0.5 + position.z],
-            tex_coords: [text_1, 1.0],
-            light
-        }, // C
-        Vertex {
-            position: [position.x, -0.5 + position.y, 0.5 + position.z],
-            tex_coords: [text_0, 1.0],
-            light
-        }, // D
+            position: [0.0, 0.0, 0.0],
+            tex_coords: [1.0, 0.0],
+            light,
+        }
     ];
 
-    match direction {
-        Direction::UP => Quad::new(vertices_ud, indices_f),
-        Direction::DOWN => Quad::new(vertices_ud, indices_b),
-        Direction::NORTH => Quad::new(vertices_ns, indices_f),
-        Direction::SOUTH => Quad::new(vertices_ns, indices_b),
-        Direction::WEST => Quad::new(vertices_we, indices_f),
-        Direction::EAST => Quad::new(vertices_we, indices_b),
+    let vertex_index = DIRECTION_LUT[direction.get_id() as usize];
+    for (index, vertex) in vertices.iter_mut().enumerate() {
+        let lut_data = (vertex_index[0], vertex_index[1]);
+
+        vertex.position[lut_data.0.0] = TEMPLATE_LUT[index].0 as f32 * size;
+        vertex.position[lut_data.1.0] = TEMPLATE_LUT[index].1 as f32 * size;
+
+        vertex.position[0] += position.x;
+        vertex.position[1] += position.y;
+        vertex.position[2] += position.z;
+
+        vertex.tex_coords[0] += tex_coords.x;
+        vertex.tex_coords[1] += tex_coords.y;
+    }
+
+    let reversed = (direction.get_id() + 1) % 2 != 0;
+
+    let indices = if !reversed {
+        [
+            0 + (index * 4),
+            1 + (index * 4),
+            2 + (index * 4),
+            2 + (index * 4),
+            3 + (index * 4),
+            0 + (index * 4),
+        ]
+    } else {
+        [
+            0 + (index * 4),
+            3 + (index * 4),
+            2 + (index * 4),
+            2 + (index * 4),
+            1 + (index * 4),
+            0 + (index * 4),
+        ]
+    };
+
+    Quad {
+        vertices,
+        indices,
     }
 }

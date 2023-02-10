@@ -1,7 +1,9 @@
 use std::sync::{Arc, RwLock};
 
 use config::Config;
-use shared::{extra::info, registry::Registry};
+use shared::{extra::info, registry::{Registry, types::ServerRegistryType}, Module};
+
+pub type ServerRegistry = Registry<ServerRegistryType>;
 
 pub mod pathfinding;
 pub mod network;
@@ -9,7 +11,7 @@ pub mod terrain;
 pub mod config;
 
 pub struct Server {
-    pub registry: Arc<RwLock<Registry>>,
+    pub registry: Module<ServerRegistry>,
 }
 
 impl Server {

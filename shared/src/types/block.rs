@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use cgmath::Vector3;
 
 use crate::util::{BoundingBox, zero::Zeroable};
@@ -17,6 +19,12 @@ pub struct Block {
 
     pub bounding_box: BoundingBox,
     pub pathfinding_state: PathfindingState,
+}
+
+impl Debug for Block {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Block").field("namespace", &self.namespace).field("id", &self.id).finish()
+    }
 }
 
 pub enum PathfindingState {

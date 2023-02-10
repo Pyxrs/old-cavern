@@ -3,8 +3,10 @@ use std::thread;
 use config::Config;
 use input::{Input, InputType};
 use window::Window;
-use shared::{registry::Registry, Module, InnerModule};
+use shared::{registry::{Registry, types::ClientRegistryType}, Module, InnerModule};
 use world::World;
+
+pub type ClientRegistry = Registry<ClientRegistryType>;
 
 pub mod interface;
 pub mod mesher;
@@ -18,7 +20,7 @@ mod world;
 pub struct Client {
     pub config: Module<Config>,
 
-    pub registry: Module<Registry>,
+    pub registry: Module<ClientRegistry>,
     pub input: Module<Input>,
 
     pub world: Module<World>,

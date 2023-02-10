@@ -1,28 +1,50 @@
-use std::{io::{Write, BufReader, Read, Error}, fs::{File, self, ReadDir}, result};
+use std::{io::{Write, BufReader, Read, Error}, fs::{File, self, ReadDir, DirEntry}, result, path::PathBuf};
 use serde::Serialize;
 
 pub type Result<T> = result::Result<T, (String, Error)>;
 
-pub fn load(path: &str) -> Result<File> {
-    let dir = std::env::current_dir().unwrap().join(path);
+fn read_raw(path: &str, dir: &PathBuf) -> Result<File> {
     helpful_result(path, File::open(dir))
 }
 
-pub fn load_bytes(path: &str) -> Result<Vec<u8>> {
+pub fn read(path: &str) -> Result<File> {
+    let dir = std::env::current_dir().unwrap().join(path);
+    read_raw(path, &dir)
+}
+
+pub fn read_bytes(path: &str) -> Result<Vec<u8>> {
     let mut contents = Vec::new();
-    helpful_result(path, BufReader::new(load(path)?).read_to_end(&mut contents))?;
+    helpful_result(path, BufReader::new(read(path)?).read_to_end(&mut contents))?;
     Ok(contents)
 }
 
-pub fn load_string(path: &str) -> Result<String> {
+pub fn read_string(path: &str) -> Result<String> {
     let mut contents = String::new();
-    helpful_result(path, BufReader::new(load(path)?).read_to_string(&mut contents))?;
+    helpful_result(path, BufReader::new(read(path)?).read_to_string(&mut contents))?;
     Ok(contents)
 }
 
-pub fn load_dir(path: &str) -> Result<ReadDir> {
+pub fn read_dir(path: &str) -> Result<ReadDir> {
     let dir = std::env::current_dir().unwrap().join(path);
     helpful_result(path, fs::read_dir(dir))
+}
+
+pub fn read_dir_entry_bytes(entry: &DirEntry) -> Result<Vec<u8>> {
+    let dir = entry.path();
+    let path = dir.to_str().unwrap();
+    
+    let mut contents = Vec::new();
+    helpful_result(path, BufReader::new(read_raw(path, &dir)?).read_to_end(&mut contents))?;
+    Ok(contents)
+}
+
+pub fn read_dir_entry_string(entry: &DirEntry) -> Result<String> {
+    let dir = entry.path();
+    let path = dir.to_str().unwrap();
+    
+    let mut contents = String::new();
+    helpful_result(path, BufReader::new(read_raw(path, &dir)?).read_to_string(&mut contents))?;
+    Ok(contents)
 }
 
 pub fn save(path: &str, data: &[u8]) -> Result<()> {

@@ -1,97 +1,23 @@
 use std::iter;
 
-use shared::{extra::Vector3, Module};
-use wgpu::{InstanceDescriptor, Backends, util::DeviceExt};
+use shared::{
+    extra::{Vector2, Vector3},
+    Module,
+};
+use wgpu::{util::DeviceExt, Backends, InstanceDescriptor, Features};
 use winit::window::Window;
 
-use crate::config::Config;
+use crate::{config::Config, mesher::quad::quad};
 
-use self::{vertex::Vertex, uniforms::CameraUniform};
+use self::{uniforms::CameraUniform, vertex::Vertex};
 
-use super::{texture::Texture, camera::{CameraController, Camera}};
+use super::{
+    camera::{Camera, CameraController},
+    texture::Texture,
+};
 
 mod uniforms;
 pub mod vertex;
-
-const VERTICES: &[Vertex] = &[
-    Vertex {
-        position: [-0.5, 0.5, 0.0],
-        tex_coords: [0.0, 0.0],
-        light: 0.0,
-    }, // A
-    Vertex {
-        position: [-0.5, -0.5, 0.0],
-        tex_coords: [0.0, 1.0],
-        light: 0.25,
-    }, // B
-    Vertex {
-        position: [0.5, -0.5, 0.0],
-        tex_coords: [1.0, 1.0],
-        light: 0.5,
-    }, // C
-    Vertex {
-        position: [0.5, 0.5, 0.0],
-        tex_coords: [1.0, 0.0],
-        light: 0.75,
-    }, // D
-
-
-
-    Vertex {
-        position: [0.0, 0.5, -0.5],
-        tex_coords: [0.0, 0.0],
-        light: 0.0,
-    }, // A
-    Vertex {
-        position: [0.0, -0.5, -0.5],
-        tex_coords: [0.0, 1.0],
-        light: 0.25,
-    }, // B
-    Vertex {
-        position: [0.0, -0.5, 0.5],
-        tex_coords: [1.0, 1.0],
-        light: 0.5,
-    }, // C
-    Vertex {
-        position: [0.0, 0.5, 0.5],
-        tex_coords: [1.0, 0.0],
-        light: 0.75,
-    }, // D
-
-
-
-    Vertex {
-        position: [0.5, 0.0, -0.5],
-        tex_coords: [0.0, 0.0],
-        light: 0.0,
-    }, // A
-    Vertex {
-        position: [-0.5, 0.0, -0.5],
-        tex_coords: [0.0, 1.0],
-        light: 0.25,
-    }, // B
-    Vertex {
-        position: [-0.5, 0.0, 0.5],
-        tex_coords: [1.0, 1.0],
-        light: 0.5,
-    }, // C
-    Vertex {
-        position: [0.5, 0.0, 0.5],
-        tex_coords: [1.0, 0.0],
-        light: 0.75,
-    }, // D
-];
-
-const INDICES: &[u16] = &[
-    0, 1, 2, 2, 3, 0,
-    0, 3, 2, 2, 1, 0,
-
-    4, 5, 6, 6, 7, 4,
-    4, 7, 6, 6, 5, 4,
-
-    8, 9, 10, 10, 11, 8,
-    8, 11, 10, 10, 9, 8,
-];
 
 #[rustfmt::skip]
 pub const OPENGL_TO_WGPU_MATRIX: shared::extra::Matrix4<f32> = shared::extra::Matrix4::new(
@@ -124,6 +50,72 @@ pub struct WindowSurface {
 
 impl WindowSurface {
     pub async fn new(window: Window, client_config: Module<Config>) -> Self {
+        let quads = [
+            quad(
+                Vector3::new(0.0, 0.5, 0.0),
+                0.5,
+                Vector2::new(0.0, 0.0),
+                0,
+                shared::direction::Direction::UP,
+                false,
+            ),
+            quad(
+                Vector3::new(0.0, -0.5, 0.0),
+                0.5,
+                Vector2::new(0.0, 0.0),
+                1,
+                shared::direction::Direction::DOWN,
+                false,
+            ),
+            quad(
+                Vector3::new(0.0, 0.0, -0.5),
+                0.5,
+                Vector2::new(0.0, 0.0),
+                2,
+                shared::direction::Direction::NORTH,
+                true,
+            ),
+            quad(
+                Vector3::new(0.0, 0.0, 0.5),
+                0.5,
+                Vector2::new(0.0, 0.0),
+                3,
+                shared::direction::Direction::SOUTH,
+                true,
+            ),
+            quad(
+                Vector3::new(-0.5, 0.0, 0.0),
+                0.5,
+                Vector2::new(0.0, 0.0),
+                4,
+                shared::direction::Direction::WEST,
+                true,
+            ),
+            quad(
+                Vector3::new(0.5, 0.0, 0.0),
+                0.5,
+                Vector2::new(0.0, 0.0),
+                5,
+                shared::direction::Direction::EAST,
+                true,
+            ),
+        ];
+
+        let mut vertices = vec![];
+        let mut indices: Vec<u16> = vec![];
+
+        for quad in quads {
+            for vertex in quad.vertices {
+                vertices.push(vertex);
+            }
+            for index in quad.indices {
+                indices.push(index);
+            }
+        }
+
+        //println!("{:#?}", vertices);
+        //println!("{:?}", indices);
+
         let size = window.inner_size();
 
         // The instance is a handle to our GPU
@@ -146,12 +138,16 @@ impl WindowSurface {
             .await
             .unwrap();
         let cap = surface.get_capabilities(&adapter);
-        
+
+        let mut features = Features::empty();
+        features.insert(Features::POLYGON_MODE_LINE);
+        features.insert(Features::POLYGON_MODE_POINT);
+
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
                     label: None,
-                    features: wgpu::Features::POLYGON_MODE_LINE,
+                    features,
                     limits: wgpu::Limits::default(),
                 },
                 None, // Trace path
@@ -170,8 +166,15 @@ impl WindowSurface {
         };
         surface.configure(&device, &config);
 
+        /*let mut textures = vec![];
+        for entry in resources::read_dir(&client_config.read().unwrap().resources.1.0).unwrap() {
+            let bytes = resources::read_dir_entry_bytes(entry.as_ref().unwrap()).unwrap();
+            println!("{}", entry.unwrap().file_name().to_str().unwrap().split_once(".").unwrap().0);
+            let texture = Texture::from_bytes(&device, &queue, &bytes, "happy-tree.png").unwrap();
+            textures.push(texture);
+        }*/
         let diffuse_bytes = &client_config.read().unwrap().resources.1.0;
-        let diffuse_texture = Texture::from_bytes(&device, &queue, &diffuse_bytes, "happy-tree.png").unwrap();
+        let diffuse_texture = Texture::from_bytes(&device, &queue, &diffuse_bytes, "textures.png").unwrap();
 
         let texture_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -257,7 +260,9 @@ impl WindowSurface {
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader"),
-            source: wgpu::ShaderSource::Wgsl(client_config.read().unwrap().resources.0.0.clone().into()),
+            source: wgpu::ShaderSource::Wgsl(
+                client_config.read().unwrap().resources.0 .0.clone().into(),
+            ),
         });
 
         let depth_texture = Texture::create_depth_texture(&device, &config, "depth_texture");
@@ -321,15 +326,15 @@ impl WindowSurface {
 
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
-            contents: bytemuck::cast_slice(VERTICES),
+            contents: bytemuck::cast_slice(&vertices),
             usage: wgpu::BufferUsages::VERTEX,
         });
         let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Index Buffer"),
-            contents: bytemuck::cast_slice(INDICES),
+            contents: bytemuck::cast_slice(&indices),
             usage: wgpu::BufferUsages::INDEX,
         });
-        let num_indices = INDICES.len() as u32;
+        let num_indices = indices.len() as u32;
 
         Self {
             surface,
@@ -363,11 +368,12 @@ impl WindowSurface {
             self.config.height = new_size.height;
             self.surface.configure(&self.device, &self.config);
             self.camera.aspect = self.config.width as f32 / self.config.height as f32;
-            self.depth_texture = Texture::create_depth_texture(&self.device, &self.config, "depth_texture");
+            self.depth_texture =
+                Texture::create_depth_texture(&self.device, &self.config, "depth_texture");
         }
     }
 
-    pub fn update(&mut self, delta: f32) {
+    pub fn update(&mut self, _delta: f32) {
         self.camera_controller.update_camera(&mut self.camera);
         self.camera_uniform.update_view_proj(&self.camera);
         self.queue.write_buffer(

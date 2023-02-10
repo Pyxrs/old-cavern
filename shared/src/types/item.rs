@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 pub struct Item {
     pub namespace: String,
     pub id: u32,
@@ -6,6 +8,12 @@ pub struct Item {
     pub on_update: Box<dyn Fn(&mut Self, Location) + Send + Sync>,
 
     pub description: String,
+}
+
+impl Debug for Item {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Item").field("namespace", &self.namespace).field("id", &self.id).finish()
+    }
 }
 
 pub enum Target {

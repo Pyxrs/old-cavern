@@ -1,43 +1,41 @@
 use std::collections::HashMap;
 
-use crate::{types::{item::Item, block::Block}, InnerModule};
+use crate::{
+    util::GetOrInsert,
+    InnerModule,
+};
 
-pub struct Registry {
-    blocks: HashMap<String, HashMap<u32, Block>>,
-    items: HashMap<String, HashMap<u32, Item>>
+use self::types::RegistryType;
+
+pub mod types;
+
+pub struct Registry<T: RegistryType> {
+    entries: HashMap<String, HashMap<u32, T>>,
 }
 
-impl InnerModule<()> for Registry {}
+impl<T: RegistryType> InnerModule<()> for Registry<T> {}
 
-impl Registry {
+impl<T: RegistryType> Registry<T> {
     pub fn new() -> Self {
         Self {
-            blocks: HashMap::new(),
-            items: HashMap::new(),
+            entries: HashMap::new(),
         }
     }
 
-    pub fn register_block(&mut self, block: Block) {
-        let namespace = block.namespace.clone();
-        let id = block.id;
+    pub fn register(&mut self, entry: T) {
+        let (namespace, id) = entry.get_id();
 
-        let blocks = self.blocks.entry(namespace).or_insert(HashMap::new());
-        blocks.insert(id, block);
+        let entries = self.entries.get_or_insert(namespace, HashMap::new());
+        entries.insert(id, entry);
     }
 
-    pub fn register_item(&mut self, item: Item) {
-        let namespace = item.namespace.clone();
-        let id = item.id;
-
-        let items = self.items.entry(namespace).or_insert(HashMap::new());
-        items.insert(id, item);
-    }
-
-    pub fn get_block(&self, namespace: impl Into<String>, id: u32) -> &Block {
-        &self.blocks.get(&namespace.into()).expect("Namespace not found!").get(&id).expect("Block not found!")
-    }
-
-    pub fn get_item(&self, namespace: impl Into<String>, id: u32) -> &Item {
-        &self.items.get(&namespace.into()).expect("Namespace not found!").get(&id).expect("Item not found!")
+    pub fn get(&self, namespace: impl Into<String>, id: u32) -> &T {
+        let namespace = namespace.into();
+        &self
+            .entries
+            .get(&namespace)
+            .expect(&format!("Namespace {} not found!", &namespace))
+            .get(&id)
+            .expect(&format!("Entry {}:{} not found!", &namespace, id))
     }
 }

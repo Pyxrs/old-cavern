@@ -74,12 +74,14 @@ impl Input {
                 WindowEvent::KeyboardInput {
                     input: keyboard_input,
                     ..
-                } => button(
-                    &input,
-                    &keyboard_input.state,
-                    &InputType::Key(keyboard_input.virtual_keycode.unwrap()),
-                    |state| InputInfo::Key(*state),
-                ),
+                } => if let Some(virtual_keycode) = keyboard_input.virtual_keycode {
+                    button(
+                        &input,
+                        &keyboard_input.state,
+                        &InputType::Key(virtual_keycode),
+                        |state| InputInfo::Key(*state),
+                    )
+                },
 
                 // Mouse buttons
                 WindowEvent::MouseInput {

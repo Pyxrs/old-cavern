@@ -1,14 +1,15 @@
 use std::{thread, vec};
 
 use client::{
-    config::{Gamma, MeshingDistance, Resources, Shader, Texture, Debug, PolygonMode},
+    config::{Gamma, MeshingDistance, Resources, Shaders, Textures, Debug, PolygonMode},
     input::{InputType, Key},
 };
+use registry::register_server_features;
 use server::config::{LoadingDistance, SimulationDistance};
 use shared::{extra::LevelFilter, resources};
 use simple_logger::SimpleLogger;
 
-use crate::registry::register_features;
+use crate::registry::register_client_features;
 
 mod registry;
 
@@ -30,7 +31,7 @@ fn main() {
             SimulationDistance(14)
         ),
         |server| {
-            register_features(server.registry.write().unwrap());
+            register_server_features(server.registry.write().unwrap());
         },
     )});
 
@@ -38,11 +39,11 @@ fn main() {
     client::init(
         client::config::Config {
             resources: Resources(
-                Shader(resources::load_string("example/resources/shader.wgsl").unwrap()),
-                Texture(resources::load_bytes("example/resources/happy-tree.png").unwrap()),
+                Shaders(resources::read_string("example/resources/shader.wgsl").unwrap()),
+                Textures("example/resources/textures/".to_string()),
             ),
             debug: Debug(
-                PolygonMode::Line,
+                PolygonMode::Fill,
             ),
             meshing_distance: MeshingDistance(12),
             gamma: Gamma(1.0),
@@ -57,7 +58,7 @@ fn main() {
             ("down", vec![InputType::Key(Key::LShift)]),
         ],
         |client| {
-            register_features(client.registry.write().unwrap());
+            register_client_features(client.registry.write().unwrap());
         },
     );
 }
