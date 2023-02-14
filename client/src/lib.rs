@@ -3,10 +3,8 @@ use std::thread;
 use config::Config;
 use input::{Input, InputType};
 use window::Window;
-use shared::{registry::{Registry, types::ClientRegistryType}, Module, InnerModule};
+use shared::{Module, InnerModule, addons::AddonManager};
 use world::World;
-
-pub type ClientRegistry = Registry<ClientRegistryType>;
 
 pub mod interface;
 pub mod mesher;
@@ -19,8 +17,8 @@ mod world;
 
 pub struct Client {
     pub config: Module<Config>,
+    pub addon_manager: Module<AddonManager>,
 
-    pub registry: Module<ClientRegistry>,
     pub input: Module<Input>,
 
     pub world: Module<World>,
@@ -30,8 +28,8 @@ pub struct Client {
 impl Client {
     fn new(config: Config) -> Self {
         let config = Module::new(config.into());
+        let addon_manager = AddonManager::new().to_module();
 
-        let registry = Registry::new().to_module();
         let input = Input::new().to_module();
 
         let world = World::new().to_module();
@@ -39,8 +37,8 @@ impl Client {
 
         Self {
             config,
+            addon_manager,
 
-            registry,
             input,
 
             world,

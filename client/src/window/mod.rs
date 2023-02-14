@@ -35,7 +35,7 @@ impl InnerModule<(Module<Config>, Module<Input>, Module<World>)> for Window {
         let event_loop = EventLoop::new();
         let window = WindowBuilder::new().build(&event_loop).unwrap();
         
-        let mut state = block_on(WindowSurface::new(window, config));
+        let mut state = block_on(WindowSurface::new(window, &config));
         let mut last_render_time = Instant::now();
         let exit = input.write().unwrap().subscribe_action("exit");
 

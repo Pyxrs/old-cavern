@@ -1,9 +1,5 @@
-use std::sync::{Arc, RwLock};
-
 use config::Config;
-use shared::{extra::info, registry::{Registry, types::ServerRegistryType}, Module};
-
-pub type ServerRegistry = Registry<ServerRegistryType>;
+use shared::{Module, addons::AddonManager, InnerModule};
 
 pub mod pathfinding;
 pub mod network;
@@ -11,13 +7,15 @@ pub mod terrain;
 pub mod config;
 
 pub struct Server {
-    pub registry: Module<ServerRegistry>,
+    pub config: Module<Config>,
+    pub addon_manager: Module<AddonManager>,
 }
 
 impl Server {
     fn new(config: Config) -> Self {
         Self {
-            registry: Arc::new(Registry::new().into()),
+            config: Module::new(config.into()),
+            addon_manager: AddonManager::new().to_module(),
         }
     }
 }
@@ -25,8 +23,6 @@ impl Server {
 pub fn init<I>(config: Config, init: I) where
     I: FnOnce(&mut Server),
 {
-    info!("Config: {:?}", config);
     let mut server = Server::new(config);
     init(&mut server);
-
 }

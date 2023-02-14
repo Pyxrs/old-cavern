@@ -1,8 +1,11 @@
-#[derive(Debug)]
-pub struct Config(pub LoadingDistance, pub SimulationDistance);
+pub struct Config {
+    pub addons: ServerAddons,
+    pub loading_distance: LoadingDistance,
+    pub simulation_distance: SimulationDistance,
+}
 
-#[derive(Debug)]
+pub struct ServerAddons(pub String);
+
 pub struct SimulationDistance(pub u16);
 
-#[derive(Debug)]
 pub struct LoadingDistance(pub u16);

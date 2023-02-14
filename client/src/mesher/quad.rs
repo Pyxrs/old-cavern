@@ -1,6 +1,6 @@
-use shared::{extra::{Vector3, Vector2}, direction::Direction, Module};
+use shared::{extra::{Vector3, Vector2}, direction::Direction};
 
-use crate::{window::surface::vertex::Vertex, ClientRegistry};
+use crate::window::surface::vertex::Vertex;
 
 const TEXTURE_INCREMENT: f32 = 1.0 / 256.0;
 const SKY_INCREMENT: f32 = 1.0 / 6.0;
@@ -28,7 +28,7 @@ pub struct Quad {
 }
 
 pub fn block_quad(
-    _registry: &Module<ClientRegistry>,
+    //_registry: &Module<ClientRegistry>,
     _namespace: impl Into<String>,
     _id: u32,
     index: u16,
@@ -39,7 +39,7 @@ pub fn block_quad(
     //let text_id = block_type.get_texture(direction);
     let text_id = 0;
     let tex = Vector2::new(TEXTURE_INCREMENT * text_id as f32, TEXTURE_INCREMENT * (text_id + 1) as f32);
-    quad(position, 0.5, tex, index, direction, true)
+    quad(position, 0.5, index, direction, true)
 }
 
 pub fn sky_quad(
@@ -48,13 +48,12 @@ pub fn sky_quad(
     position: Vector3<f32>,
 ) -> Quad {
     let tex = Vector2::new(SKY_INCREMENT * direction.get_id() as f32, SKY_INCREMENT * (direction.get_id() + 1) as f32);
-    quad(position, 0.5, tex, index, direction, false)
+    quad(position, 0.5, index, direction, false)
 }
 
 pub fn quad(
     position: Vector3<f32>,
     size: f32,
-    tex_coords: Vector2<f32>, // TODO: Texture arrays
     index: u16,
     direction: Direction,
     lighting: bool, // TODO: Actual lighting
@@ -77,21 +76,25 @@ pub fn quad(
         Vertex {
             position: [0.0, 0.0, 0.0],
             tex_coords: [0.0, 0.0],
+            index: 1,
             light,
         },
         Vertex {
             position: [0.0, 0.0, 0.0],
             tex_coords: [0.0, 1.0],
+            index: 0,
             light,
         },
         Vertex {
             position: [0.0, 0.0, 0.0],
             tex_coords: [1.0, 1.0],
+            index: 0,
             light,
         },
         Vertex {
             position: [0.0, 0.0, 0.0],
             tex_coords: [1.0, 0.0],
+            index: 0,
             light,
         }
     ];
@@ -106,9 +109,6 @@ pub fn quad(
         vertex.position[0] += position.x;
         vertex.position[1] += position.y;
         vertex.position[2] += position.z;
-
-        vertex.tex_coords[0] += tex_coords.x;
-        vertex.tex_coords[1] += tex_coords.y;
     }
 
     let reversed = (direction.get_id() + 1) % 2 != 0;

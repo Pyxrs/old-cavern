@@ -1,17 +1,16 @@
 pub use wgpu::PolygonMode;
 
-pub struct Config{
-    pub resources: Resources,
+pub struct Config {
+    pub shader: Shader,
+    pub addons: ClientAddons,
     pub debug: Debug,
     pub meshing_distance: MeshingDistance,
     pub gamma: Gamma,
 }
 
-pub struct Resources(pub Shaders, pub Textures);
+pub struct Shader(pub String);
 
-pub struct Shaders(pub String);
-
-pub struct Textures(pub String);
+pub struct ClientAddons(pub String);
 
 pub struct Debug(pub PolygonMode);
 

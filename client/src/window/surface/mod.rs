@@ -1,10 +1,16 @@
-use std::iter;
+use std::{
+    collections::HashMap,
+    iter,
+    num::NonZeroU32,
+};
 
 use shared::{
-    extra::{Vector2, Vector3},
+    extra::Vector3,
+    resources,
+    util::GetOrInsert,
     Module,
 };
-use wgpu::{util::DeviceExt, Backends, InstanceDescriptor, Features};
+use wgpu::{util::DeviceExt, Backends, Features, InstanceDescriptor};
 use winit::window::Window;
 
 use crate::{config::Config, mesher::quad::quad};
@@ -37,7 +43,7 @@ pub struct WindowSurface {
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     num_indices: u32,
-    diffuse_bind_group: wgpu::BindGroup,
+    texture_bind_group: wgpu::BindGroup,
     camera: Camera,
     pub camera_controller: CameraController,
     //projection: Projection,
@@ -49,12 +55,11 @@ pub struct WindowSurface {
 }
 
 impl WindowSurface {
-    pub async fn new(window: Window, client_config: Module<Config>) -> Self {
+    pub async fn new(window: Window, client_config: &Module<Config>) -> Self {
         let quads = [
             quad(
                 Vector3::new(0.0, 0.5, 0.0),
                 0.5,
-                Vector2::new(0.0, 0.0),
                 0,
                 shared::direction::Direction::UP,
                 false,
@@ -62,7 +67,6 @@ impl WindowSurface {
             quad(
                 Vector3::new(0.0, -0.5, 0.0),
                 0.5,
-                Vector2::new(0.0, 0.0),
                 1,
                 shared::direction::Direction::DOWN,
                 false,
@@ -70,7 +74,6 @@ impl WindowSurface {
             quad(
                 Vector3::new(0.0, 0.0, -0.5),
                 0.5,
-                Vector2::new(0.0, 0.0),
                 2,
                 shared::direction::Direction::NORTH,
                 true,
@@ -78,7 +81,6 @@ impl WindowSurface {
             quad(
                 Vector3::new(0.0, 0.0, 0.5),
                 0.5,
-                Vector2::new(0.0, 0.0),
                 3,
                 shared::direction::Direction::SOUTH,
                 true,
@@ -86,7 +88,6 @@ impl WindowSurface {
             quad(
                 Vector3::new(-0.5, 0.0, 0.0),
                 0.5,
-                Vector2::new(0.0, 0.0),
                 4,
                 shared::direction::Direction::WEST,
                 true,
@@ -94,7 +95,6 @@ impl WindowSurface {
             quad(
                 Vector3::new(0.5, 0.0, 0.0),
                 0.5,
-                Vector2::new(0.0, 0.0),
                 5,
                 shared::direction::Direction::EAST,
                 true,
@@ -142,6 +142,8 @@ impl WindowSurface {
         let mut features = Features::empty();
         features.insert(Features::POLYGON_MODE_LINE);
         features.insert(Features::POLYGON_MODE_POINT);
+        features.insert(Features::TEXTURE_BINDING_ARRAY);
+        features.insert(Features::SAMPLED_TEXTURE_AND_STORAGE_BUFFER_ARRAY_NON_UNIFORM_INDEXING);
 
         let (device, queue) = adapter
             .request_device(
@@ -150,7 +152,7 @@ impl WindowSurface {
                     features,
                     limits: wgpu::Limits::default(),
                 },
-                None, // Trace path
+                None,
             )
             .await
             .unwrap();
@@ -166,28 +168,44 @@ impl WindowSurface {
         };
         surface.configure(&device, &config);
 
-        /*let mut textures = vec![];
-        for entry in resources::read_dir(&client_config.read().unwrap().resources.1.0).unwrap() {
-            let bytes = resources::read_dir_entry_bytes(entry.as_ref().unwrap()).unwrap();
-            println!("{}", entry.unwrap().file_name().to_str().unwrap().split_once(".").unwrap().0);
-            let texture = Texture::from_bytes(&device, &queue, &bytes, "happy-tree.png").unwrap();
-            textures.push(texture);
-        }*/
-        let diffuse_bytes = &client_config.read().unwrap().resources.1.0;
-        let diffuse_texture = Texture::from_bytes(&device, &queue, &diffuse_bytes, "textures.png").unwrap();
+        let mut textures: HashMap<String, HashMap<String, Texture>> = HashMap::new();
+        for entry in resources::read_dir(&client_config.read().unwrap().addons.0).unwrap() {
+            let file_name = entry.as_ref().unwrap().file_name();
+            let namespace = file_name.to_str().unwrap();
+            let textures_folder = entry.unwrap().path().join("textures");
+
+            for texture in resources::read_dir(textures_folder).unwrap() {
+                let file_name = texture.as_ref().unwrap().file_name();
+                let (name, file_type) = file_name.to_str().unwrap().split_once(".").unwrap();
+                
+                if file_type != "png" {
+                    continue
+                }
+                
+                let bytes = resources::read_dir_entry_bytes(texture.as_ref().unwrap()).unwrap();
+
+                let texture = Texture::from_bytes(&device, &queue, &bytes, &format!("{}:{}", namespace, name)).unwrap();
+                textures
+                    .get_or_insert(namespace, HashMap::new())
+                    .insert(name.to_string(), texture);
+            }
+        }
+
+        let sampler = device.create_sampler(&wgpu::SamplerDescriptor::default());
 
         let texture_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("texture_bind_group_layout"),
                 entries: &[
                     wgpu::BindGroupLayoutEntry {
                         binding: 0,
                         visibility: wgpu::ShaderStages::FRAGMENT,
                         ty: wgpu::BindingType::Texture {
-                            multisampled: false,
-                            view_dimension: wgpu::TextureViewDimension::D2,
                             sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            multisampled: false,
                         },
-                        count: None,
+                        count: NonZeroU32::new(2),
                     },
                     wgpu::BindGroupLayoutEntry {
                         binding: 1,
@@ -196,22 +214,27 @@ impl WindowSurface {
                         count: None,
                     },
                 ],
-                label: Some("texture_bind_group_layout"),
             });
 
-        let diffuse_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        let temp_texture = textures.get("example").unwrap().get("grass_top").unwrap();
+        let temp_texture2 = textures.get("example").unwrap().get("grass_side").unwrap();
+
+        let texture_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &texture_bind_group_layout,
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&diffuse_texture.view),
+                    resource: wgpu::BindingResource::TextureViewArray(&[
+                        &temp_texture.view,
+                        &temp_texture2.view,
+                    ]),
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&diffuse_texture.sampler),
+                    resource: wgpu::BindingResource::Sampler(&sampler),
                 },
             ],
-            label: Some("diffuse_bind_group"),
+            label: Some("texture_bind_group"),
         });
 
         let camera = Camera {
@@ -261,7 +284,7 @@ impl WindowSurface {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader"),
             source: wgpu::ShaderSource::Wgsl(
-                client_config.read().unwrap().resources.0 .0.clone().into(),
+                client_config.read().unwrap().shader.0.clone().into(),
             ),
         });
 
@@ -299,12 +322,8 @@ impl WindowSurface {
                 strip_index_format: None,
                 front_face: wgpu::FrontFace::Ccw,
                 cull_mode: Some(wgpu::Face::Back),
-                // Setting this to anything other than Fill requires Features::POLYGON_MODE_LINE
-                // or Features::POLYGON_MODE_POINT
                 polygon_mode: client_config.read().unwrap().debug.0,
-                // Requires Features::DEPTH_CLIP_CONTROL
                 unclipped_depth: false,
-                // Requires Features::CONSERVATIVE_RASTERIZATION
                 conservative: false,
             },
             depth_stencil: Some(wgpu::DepthStencilState {
@@ -346,7 +365,7 @@ impl WindowSurface {
             vertex_buffer,
             index_buffer,
             num_indices,
-            diffuse_bind_group,
+            texture_bind_group,
             camera,
             camera_controller,
             camera_buffer,
@@ -422,8 +441,8 @@ impl WindowSurface {
             });
 
             render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
             render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
+            render_pass.set_bind_group(0, &self.texture_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
             render_pass.draw_indexed(0..self.num_indices, 0, 0..1);

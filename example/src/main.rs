@@ -1,17 +1,12 @@
 use std::{thread, vec};
 
 use client::{
-    config::{Gamma, MeshingDistance, Resources, Shaders, Textures, Debug, PolygonMode},
+    config::{ClientAddons, Debug, Gamma, MeshingDistance, PolygonMode, Shader},
     input::{InputType, Key},
 };
-use registry::register_server_features;
-use server::config::{LoadingDistance, SimulationDistance};
+use server::config::{LoadingDistance, SimulationDistance, ServerAddons};
 use shared::{extra::LevelFilter, resources};
 use simple_logger::SimpleLogger;
-
-use crate::registry::register_client_features;
-
-mod registry;
 
 fn main() {
     // Logging
@@ -25,26 +20,29 @@ fn main() {
         .unwrap();
 
     // Server
-    thread::spawn(|| { server::init(
-        server::config::Config(
-            LoadingDistance(12),
-            SimulationDistance(14)
-        ),
-        |server| {
-            register_server_features(server.registry.write().unwrap());
-        },
-    )});
+    thread::spawn(|| {
+        server::init(
+            server::config::Config {
+                addons: ServerAddons("example/addons/".to_string()),
+                loading_distance: LoadingDistance(12),
+                simulation_distance: SimulationDistance(14),
+            },
+            |server| {
+                server
+                    .addon_manager
+                    .write()
+                    .unwrap()
+                    .load(server.config.read().unwrap().addons.0.clone());
+            },
+        )
+    });
 
     // Client
     client::init(
         client::config::Config {
-            resources: Resources(
-                Shaders(resources::read_string("example/resources/shader.wgsl").unwrap()),
-                Textures("example/resources/textures/".to_string()),
-            ),
-            debug: Debug(
-                PolygonMode::Fill,
-            ),
+            shader: Shader(resources::read_string("example/shader.wgsl").unwrap()),
+            addons: ClientAddons("example/addons/".to_string()),
+            debug: Debug(PolygonMode::Fill),
             meshing_distance: MeshingDistance(12),
             gamma: Gamma(1.0),
         },
@@ -58,7 +56,11 @@ fn main() {
             ("down", vec![InputType::Key(Key::LShift)]),
         ],
         |client| {
-            register_client_features(client.registry.write().unwrap());
+            client
+                .addon_manager
+                .write()
+                .unwrap()
+                .load(client.config.read().unwrap().addons.0.clone());
         },
     );
 }
