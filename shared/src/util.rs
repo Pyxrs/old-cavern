@@ -4,9 +4,8 @@ use std::hash::{Hash, BuildHasher};
 use cgmath::Vector3;
 
 pub fn if_let<F, O, A>(option: Option<O>, args: A, if_some: F) where F: FnOnce(O, A) {
-    if let Some(value) = option {
-        if_some(value, args);
-    }
+    let Some(value) = option else { return };
+    if_some(value, args);
 }
 
 pub struct BoundingBox(pub Vector3<f32>, pub Vector3<f32>);

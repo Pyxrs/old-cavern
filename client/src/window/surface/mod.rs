@@ -1,19 +1,10 @@
-use std::{
-    collections::HashMap,
-    iter,
-    num::NonZeroU32,
-};
+use std::{collections::HashMap, iter, num::NonZeroU32, sync::RwLockReadGuard};
 
-use shared::{
-    extra::Vector3,
-    resources,
-    util::GetOrInsert,
-    Module,
-};
-use wgpu::{util::DeviceExt, Backends, Features, InstanceDescriptor};
+use shared::{extra::Vector3, resources, util::GetOrInsert, Module, addons::AddonManager, direction::Direction};
+use wgpu::{util::DeviceExt, Backends, Features, InstanceDescriptor, TextureView};
 use winit::window::Window;
 
-use crate::{config::Config, mesher::quad::quad};
+use crate::{config::Config, mesher::quad::{block_quad, Quad}};
 
 use self::{uniforms::CameraUniform, vertex::Vertex};
 
@@ -55,78 +46,14 @@ pub struct WindowSurface {
 }
 
 impl WindowSurface {
-    pub async fn new(window: Window, client_config: &Module<Config>) -> Self {
-        let quads = [
-            quad(
-                Vector3::new(0.0, 0.5, 0.0),
-                0.5,
-                0,
-                shared::direction::Direction::UP,
-                false,
-            ),
-            quad(
-                Vector3::new(0.0, -0.5, 0.0),
-                0.5,
-                1,
-                shared::direction::Direction::DOWN,
-                false,
-            ),
-            quad(
-                Vector3::new(0.0, 0.0, -0.5),
-                0.5,
-                2,
-                shared::direction::Direction::NORTH,
-                true,
-            ),
-            quad(
-                Vector3::new(0.0, 0.0, 0.5),
-                0.5,
-                3,
-                shared::direction::Direction::SOUTH,
-                true,
-            ),
-            quad(
-                Vector3::new(-0.5, 0.0, 0.0),
-                0.5,
-                4,
-                shared::direction::Direction::WEST,
-                true,
-            ),
-            quad(
-                Vector3::new(0.5, 0.0, 0.0),
-                0.5,
-                5,
-                shared::direction::Direction::EAST,
-                true,
-            ),
-        ];
-
-        let mut vertices = vec![];
-        let mut indices: Vec<u16> = vec![];
-
-        for quad in quads {
-            for vertex in quad.vertices {
-                vertices.push(vertex);
-            }
-            for index in quad.indices {
-                indices.push(index);
-            }
-        }
-
-        //println!("{:#?}", vertices);
-        //println!("{:?}", indices);
-
+    pub async fn new(window: Window, client_config: &Module<Config>, addon_manager: &Module<AddonManager>) -> Self {
         let size = window.inner_size();
 
-        // The instance is a handle to our GPU
-        // BackendBit::PRIMARY => Vulkan + Metal + DX12 + Browser WebGPU
         let instance = wgpu::Instance::new(InstanceDescriptor {
             backends: Backends::PRIMARY,
             dx12_shader_compiler: wgpu::Dx12Compiler::Fxc,
         });
-
-        // The surface needs to live as long as the window that created it.
-        // State owns the window so this should be safe.
+        
         let surface = unsafe { instance.create_surface(&window) }.unwrap();
 
         let adapter = instance
@@ -168,7 +95,9 @@ impl WindowSurface {
         };
         surface.configure(&device, &config);
 
-        let mut textures: HashMap<String, HashMap<String, Texture>> = HashMap::new();
+        let mut texture_index: Vec<Texture> = vec![];
+        let mut textures: HashMap<String, HashMap<String, usize>> = HashMap::new();
+        
         for entry in resources::read_dir(&client_config.read().unwrap().addons.0).unwrap() {
             let file_name = entry.as_ref().unwrap().file_name();
             let namespace = file_name.to_str().unwrap();
@@ -176,21 +105,31 @@ impl WindowSurface {
 
             for texture in resources::read_dir(textures_folder).unwrap() {
                 let file_name = texture.as_ref().unwrap().file_name();
-                let (name, file_type) = file_name.to_str().unwrap().split_once(".").unwrap();
-                
-                if file_type != "png" {
-                    continue
-                }
-                
-                let bytes = resources::read_dir_entry_bytes(texture.as_ref().unwrap()).unwrap();
+                let name = file_name.to_str().unwrap().split_once(".").unwrap().0;
 
-                let texture = Texture::from_bytes(&device, &queue, &bytes, &format!("{}:{}", namespace, name)).unwrap();
-                textures
-                    .get_or_insert(namespace, HashMap::new())
-                    .insert(name.to_string(), texture);
+                let bytes = resources::read_dir_entry_bytes(texture.as_ref().unwrap(), Some("png"));
+
+                if let Ok(bytes) = bytes {
+
+                    let texture = Texture::from_bytes(
+                        &device,
+                        &queue,
+                        &bytes,
+                        &format!("{}:{}", namespace, name),
+                    )
+                    .unwrap();
+
+                    texture_index.push(texture);
+
+                    textures
+                        .get_or_insert(namespace, HashMap::new())
+                        .insert(name.to_string(), texture_index.len() - 1);
+
+                }
             }
         }
 
+        let views: Vec<&TextureView> = texture_index.iter().map(|e| &e.view).collect();
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor::default());
 
         let texture_bind_group_layout =
@@ -205,7 +144,7 @@ impl WindowSurface {
                             view_dimension: wgpu::TextureViewDimension::D2,
                             multisampled: false,
                         },
-                        count: NonZeroU32::new(2),
+                        count: NonZeroU32::new(views.len() as u32),
                     },
                     wgpu::BindGroupLayoutEntry {
                         binding: 1,
@@ -216,18 +155,12 @@ impl WindowSurface {
                 ],
             });
 
-        let temp_texture = textures.get("example").unwrap().get("grass_top").unwrap();
-        let temp_texture2 = textures.get("example").unwrap().get("grass_side").unwrap();
-
         let texture_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &texture_bind_group_layout,
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::TextureViewArray(&[
-                        &temp_texture.view,
-                        &temp_texture2.view,
-                    ]),
+                    resource: wgpu::BindingResource::TextureViewArray(&views),
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
@@ -236,6 +169,84 @@ impl WindowSurface {
             ],
             label: Some("texture_bind_group"),
         });
+
+        // ============================= QUADS =============================
+        fn quad(
+            addon_manager: &RwLockReadGuard<AddonManager>,
+            textures: &HashMap<String, HashMap<String, usize>>,
+            id: u32,
+            position: Vector3<f32>,
+            direction: Direction,
+            index: u16
+        ) -> Quad {
+            block_quad(addon_manager, textures, "example", id, position, direction, index)
+        }
+
+        let quad_addons = addon_manager.read().unwrap();
+        let quads = [
+            quad(
+                &quad_addons,
+                &textures,
+                0,
+                Vector3::new(0.0, 0.5, 0.0),
+                Direction::UP,
+                0,
+            ),
+            quad(
+                &quad_addons,
+                &textures,
+                0,
+                Vector3::new(0.0, -0.5, 0.0),
+                Direction::DOWN,
+                1,
+            ),
+            quad(
+                &quad_addons,
+                &textures,
+                0,
+                Vector3::new(0.0, 0.0, -0.5),
+                Direction::NORTH,
+                2,
+            ),
+            quad(
+                &quad_addons,
+                &textures,
+                0,
+                Vector3::new(0.0, 0.0, 0.5),
+                Direction::SOUTH,
+                3,
+            ),
+            quad(
+                &quad_addons,
+                &textures,
+                0,
+                Vector3::new(-0.5, 0.0, 0.0),
+                Direction::WEST,
+                4,
+            ),
+            quad(
+                &quad_addons,
+                &textures,
+                0,
+                Vector3::new(0.5, 0.0, 0.0),
+                Direction::EAST,
+                5,
+            ),
+        ];
+        drop(quad_addons);
+
+        let mut vertices = vec![];
+        let mut indices: Vec<u16> = vec![];
+
+        for quad in quads {
+            for vertex in quad.vertices {
+                vertices.push(vertex);
+            }
+            for index in quad.indices {
+                indices.push(index);
+            }
+        }
+        // ============================= QUADS =============================
 
         let camera = Camera {
             eye: (0.0, 5.0, 10.0).into(),
@@ -283,9 +294,7 @@ impl WindowSurface {
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader"),
-            source: wgpu::ShaderSource::Wgsl(
-                client_config.read().unwrap().shader.0.clone().into(),
-            ),
+            source: wgpu::ShaderSource::Wgsl(client_config.read().unwrap().shader.0.clone().into()),
         });
 
         let depth_texture = Texture::create_depth_texture(&device, &config, "depth_texture");

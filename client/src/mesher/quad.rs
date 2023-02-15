@@ -1,9 +1,8 @@
-use shared::{extra::{Vector3, Vector2}, direction::Direction};
+use std::{sync::RwLockReadGuard, collections::HashMap};
+
+use shared::{extra::Vector3, direction::Direction, addons::{AddonManager, Type}};
 
 use crate::window::surface::vertex::Vertex;
-
-const TEXTURE_INCREMENT: f32 = 1.0 / 256.0;
-const SKY_INCREMENT: f32 = 1.0 / 6.0;
 
 const DIRECTION_LUT: [[(usize, i8); 2]; 6] = [
     [(0, 1), (2, 1)],
@@ -28,27 +27,19 @@ pub struct Quad {
 }
 
 pub fn block_quad(
-    //_registry: &Module<ClientRegistry>,
-    _namespace: impl Into<String>,
-    _id: u32,
-    index: u16,
-    direction: Direction,
+    addon_manager: &RwLockReadGuard<AddonManager>,
+    textures: &HashMap<String, HashMap<String, usize>>,
+    namespace: impl Into<String>,
+    id: u32,
     position: Vector3<f32>,
+    direction: Direction,
+    index: u16,
 ) -> Quad {
-    //let block_type = crate::block_types::get(id);
-    //let text_id = block_type.get_texture(direction);
-    let text_id = 0;
-    let tex = Vector2::new(TEXTURE_INCREMENT * text_id as f32, TEXTURE_INCREMENT * (text_id + 1) as f32);
-    quad(position, 0.5, index, direction, true)
-}
+    let namespace = namespace.into();
 
-pub fn sky_quad(
-    index: u16,
-    direction: Direction,
-    position: Vector3<f32>,
-) -> Quad {
-    let tex = Vector2::new(SKY_INCREMENT * direction.get_id() as f32, SKY_INCREMENT * (direction.get_id() + 1) as f32);
-    quad(position, 0.5, index, direction, false)
+    let texture_name = addon_manager.get_block_texture(&Type::Block(namespace.clone(), id), &direction);
+    let texture_index = textures.get(&namespace).unwrap().get(&texture_name).unwrap();
+    quad(position, 0.5, index, direction, true, *texture_index as u32)
 }
 
 pub fn quad(
@@ -57,6 +48,7 @@ pub fn quad(
     index: u16,
     direction: Direction,
     lighting: bool, // TODO: Actual lighting
+    texture_index: u32,
 ) -> Quad {
 
     let light = if lighting {
@@ -76,25 +68,25 @@ pub fn quad(
         Vertex {
             position: [0.0, 0.0, 0.0],
             tex_coords: [0.0, 0.0],
-            index: 1,
+            index: texture_index,
             light,
         },
         Vertex {
             position: [0.0, 0.0, 0.0],
             tex_coords: [0.0, 1.0],
-            index: 0,
+            index: texture_index,
             light,
         },
         Vertex {
             position: [0.0, 0.0, 0.0],
             tex_coords: [1.0, 1.0],
-            index: 0,
+            index: texture_index,
             light,
         },
         Vertex {
             position: [0.0, 0.0, 0.0],
             tex_coords: [1.0, 0.0],
-            index: 0,
+            index: texture_index,
             light,
         }
     ];
@@ -109,6 +101,17 @@ pub fn quad(
         vertex.position[0] += position.x;
         vertex.position[1] += position.y;
         vertex.position[2] += position.z;
+    }
+
+    // Fix rotated textures in some directions
+    match direction {
+        Direction::WEST | Direction::EAST => {
+            vertices[0].tex_coords = [0.0, 1.0];
+            vertices[1].tex_coords = [1.0, 1.0];
+            vertices[2].tex_coords = [1.0, 0.0];
+            vertices[3].tex_coords = [0.0, 0.0];
+        },
+        _ => {},
     }
 
     let reversed = (direction.get_id() + 1) % 2 != 0;

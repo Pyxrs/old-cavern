@@ -58,6 +58,6 @@ pub fn init<I>(config: Config, input: Vec<(impl Into<String>, Vec<InputType>)>, 
         World::run(args, ());
     });
 
-    let args = (client.window.clone(), client.config.clone(), client.input.clone(), client.world.clone());
-    Window::run(args.0, (args.1, args.2, args.3));
+    let args = (client.window.clone(), client.config.clone(), client.addon_manager.clone(), client.input.clone(), client.world.clone());
+    Window::run(args.0, (args.1, args.2, args.3, args.4));
 }

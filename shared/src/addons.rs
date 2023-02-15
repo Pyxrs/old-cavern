@@ -2,7 +2,7 @@ use std::{collections::HashMap, path::Path};
 
 use mlua::{Lua, Table};
 
-use crate::{resources, InnerModule};
+use crate::{resources, InnerModule, direction::Direction};
 
 // TODO: Addon toml settings and addon priority for feature overrides
 
@@ -45,12 +45,32 @@ impl AddonManager {
         lua.globals().get("Block").unwrap()
     }
 
+    pub fn get_block_texture(&self, index: &Type, direction: &Direction) -> String {
+        let block = self.get(index);
+        let textures: Table = block.get("textures").unwrap();
+
+        fn side(direction: String, textures: &Table) -> String {
+            if let Ok(up) = textures.get(direction) {
+                return up;
+            }
+            textures.get("side").unwrap()
+        }
+
+        match direction {
+            Direction::UP => textures.get("up").unwrap(),
+            Direction::DOWN => textures.get("down").unwrap(),
+            direction => side(direction.get_string(), &textures),
+        }
+    }
+
     fn load_blocks(&mut self, path: impl AsRef<Path>) { // TODO: More verbose errors
         for entry in resources::read_dir(path.as_ref().join("blocks")).unwrap() {
+            let Ok(code) = resources::read_dir_entry_string(entry.as_ref().unwrap(), Some("lua")) else { continue };
+
             if entry.as_ref().unwrap().file_name() == "template.lua" {
                 continue
             }
-            
+
             let lua = Lua::new();
             
             // Create block variable
@@ -74,7 +94,6 @@ impl AddonManager {
             lua.globals().set("PathfindingState", pathfinding_state).unwrap();
 
             // Get code and run it
-            let code = resources::read_dir_entry_string(entry.as_ref().unwrap()).unwrap();
             lua.load(&code).exec().unwrap();
 
             // Parse output

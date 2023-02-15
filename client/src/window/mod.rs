@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use pollster::block_on;
-use shared::{Module, InnerModule, extra::warn, util::ThisOrThat};
+use shared::{Module, InnerModule, extra::warn, util::ThisOrThat, addons::AddonManager};
 use winit::{event_loop::{EventLoop, ControlFlow}, window::WindowBuilder, event::{Event, WindowEvent, ElementState}};
 
 use crate::{world::World, input::{Input, InputInfo}, config::Config};
@@ -30,12 +30,12 @@ impl Window {
     }
 }
 
-impl InnerModule<(Module<Config>, Module<Input>, Module<World>)> for Window {
-    fn run(module: Module<Self>, (config, input, _world): (Module<Config>, Module<Input>, Module<World>)) {
+impl InnerModule<(Module<Config>, Module<AddonManager>, Module<Input>, Module<World>)> for Window {
+    fn run(module: Module<Self>, (config, addon_manager, input, _world): (Module<Config>, Module<AddonManager>, Module<Input>, Module<World>)) {
         let event_loop = EventLoop::new();
         let window = WindowBuilder::new().build(&event_loop).unwrap();
         
-        let mut state = block_on(WindowSurface::new(window, &config));
+        let mut state = block_on(WindowSurface::new(window, &config, &addon_manager));
         let mut last_render_time = Instant::now();
         let exit = input.write().unwrap().subscribe_action("exit");
 

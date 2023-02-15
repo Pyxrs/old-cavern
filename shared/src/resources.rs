@@ -29,22 +29,44 @@ pub fn read_dir(path: impl AsRef<Path>) -> Result<ReadDir> {
     helpful_result(path, fs::read_dir(dir))
 }
 
-pub fn read_dir_entry_bytes(entry: &DirEntry) -> Result<Vec<u8>> {
+pub fn read_dir_entry_bytes(entry: &DirEntry, file_type: Option<&str>) -> Result<Vec<u8>> {
     let dir = entry.path();
-    let path = dir.to_str().unwrap();
+
+    if let Some(file_type) = file_type {
+        type_match(entry, file_type)?;
+    }
     
+    let path = dir.to_str().unwrap();
     let mut contents = Vec::new();
     helpful_result(path, BufReader::new(read_raw(path, &dir)?).read_to_end(&mut contents))?;
     Ok(contents)
 }
 
-pub fn read_dir_entry_string(entry: &DirEntry) -> Result<String> {
+pub fn read_dir_entry_string(entry: &DirEntry, file_type: Option<&str>) -> Result<String> {
     let dir = entry.path();
-    let path = dir.to_str().unwrap();
+
+    if let Some(file_type) = file_type {
+        type_match(entry, file_type)?;
+    }
     
+    let path = dir.to_str().unwrap();
     let mut contents = String::new();
     helpful_result(path, BufReader::new(read_raw(path, &dir)?).read_to_string(&mut contents))?;
     Ok(contents)
+}
+
+fn type_match(entry: &DirEntry, file_type: &str) -> Result<()> {
+    if entry.file_name().to_str().unwrap().split_once(".").unwrap().1 != file_type {
+        return Result::Err((
+            format!(
+                "File is not of the correct type {} at {}",
+                file_type, 
+                entry.path().to_str().unwrap().to_string()
+            ),
+            Error::last_os_error(),
+        ));
+    }
+    Result::Ok(())
 }
 
 pub fn save(path: &str, data: &[u8]) -> Result<()> {
