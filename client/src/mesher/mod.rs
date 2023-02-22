@@ -1,4 +1,4 @@
-use shared::InnerModule;
+use shared::Module;
 
 pub mod quad;
 
@@ -6,4 +6,12 @@ struct Mesher {
     //
 }
 
-impl InnerModule<()> for Mesher {}
+impl Module<(), ()> for Mesher {
+    fn new() -> ((), Self) {
+        todo!()
+    }
+
+    fn run(self, _args: ()) {
+        todo!()
+    }
+}

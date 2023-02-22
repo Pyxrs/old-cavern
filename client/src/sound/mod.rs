@@ -1,7 +1,15 @@
-use shared::InnerModule;
+use shared::Module;
 
 struct Sound {
     //
 }
 
-impl InnerModule<()> for Sound {}
+impl Module<(), ()> for Sound {
+    fn new() -> ((), Self) {
+        todo!()
+    }
+
+    fn run(self, _args: ()) {
+        todo!()
+    }
+}

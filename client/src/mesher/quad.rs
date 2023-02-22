@@ -1,4 +1,4 @@
-use std::{sync::RwLockReadGuard, collections::HashMap};
+use std::collections::HashMap;
 
 use shared::{extra::Vector3, direction::Direction, addons::{AddonManager, Type}};
 
@@ -27,7 +27,7 @@ pub struct Quad {
 }
 
 pub fn block_quad(
-    addon_manager: &RwLockReadGuard<AddonManager>,
+    addon_manager: &AddonManager,
     textures: &HashMap<String, HashMap<String, usize>>,
     namespace: impl Into<String>,
     id: u32,

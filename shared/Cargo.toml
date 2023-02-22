@@ -8,6 +8,8 @@ log = "0.4"
 cgmath = "0.18"
 toml = "0.7"
 serde = "1.0"
+byte = "0.2"
 crossbeam-channel = "0.5"
 anyhow = "1.0"
 mlua = { version = "0.8", features = ["lua54", "vendored"] }
+uflow = "0.7"

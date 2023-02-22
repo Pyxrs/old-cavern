@@ -27,17 +27,13 @@ fn main() {
                 loading_distance: LoadingDistance(12),
                 simulation_distance: SimulationDistance(14),
             },
-            |server| {
-                server
-                    .addon_manager
-                    .write()
-                    .unwrap()
-                    .load(server.config.read().unwrap().addons.0.clone());
+            |server, server_io, modules| {
+            },
+            |state, server, server_io| {
             },
         )
     });
 
-    // Client
     client::init(
         client::config::Config {
             shader: Shader(resources::read_string("example/shader.wgsl").unwrap()),
@@ -46,21 +42,18 @@ fn main() {
             meshing_distance: MeshingDistance(12),
             gamma: Gamma(1.0),
         },
-        vec![
-            ("exit", vec![InputType::Key(Key::Escape)]),
-            ("forward", vec![InputType::Key(Key::W)]),
-            ("backward", vec![InputType::Key(Key::S)]),
-            ("left", vec![InputType::Key(Key::A)]),
-            ("right", vec![InputType::Key(Key::D)]),
-            ("up", vec![InputType::Key(Key::Space)]),
-            ("down", vec![InputType::Key(Key::LShift)]),
-        ],
-        |client| {
-            client
-                .addon_manager
-                .write()
-                .unwrap()
-                .load(client.config.read().unwrap().addons.0.clone());
+        |client, client_io, modules| {
+            client.input.add_actions(vec![
+                ("exit", vec![InputType::Key(Key::Escape)]),
+                ("forward", vec![InputType::Key(Key::W)]),
+                ("backward", vec![InputType::Key(Key::S)]),
+                ("left", vec![InputType::Key(Key::A)]),
+                ("right", vec![InputType::Key(Key::D)]),
+                ("up", vec![InputType::Key(Key::Space)]),
+                ("down", vec![InputType::Key(Key::LShift)]),
+            ]);
+        },
+        |state, client, client_io| {
         },
     );
 }

@@ -1,4 +1,4 @@
-use shared::{InnerModule, Module};
+use shared::Module;
 
 use self::player::Player;
 
@@ -8,16 +8,13 @@ pub struct World {
     pub player: Player,
 }
 
-impl World {
-    pub fn new() -> Self {
-        Self {
+impl Module<(), ()> for World {
+    fn new() -> ((), Self) {
+        ((), Self {
             player: Player::new(),
-        }
+        })
     }
-}
 
-impl InnerModule<()> for World {
-    fn run(_module: Module<Self>, _modules: ()) {
-        //
+    fn run(self, _args: ()) {
     }
 }

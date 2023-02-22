@@ -1,63 +1,67 @@
 use std::thread;
 
 use config::Config;
-use input::{Input, InputType};
+use input::{Input, InputInfo};
+use shared::{addons::AddonManager, extra::Receiver, Module, StaticModule};
 use window::Window;
-use shared::{Module, InnerModule, addons::AddonManager};
 use world::World;
 
+pub mod config;
+pub mod input;
 pub mod interface;
 pub mod mesher;
 pub mod network;
 pub mod sound;
 pub mod window;
-pub mod config;
-pub mod input;
 mod world;
 
 pub struct Client {
-    pub config: Module<Config>,
-    pub addon_manager: Module<AddonManager>,
-
-    pub input: Module<Input>,
-
-    pub world: Module<World>,
-    pub window: Module<Window>,
+    pub config: Config,
+    pub addon_manager: AddonManager,
+    pub input: Input,
 }
 
-impl Client {
-    fn new(config: Config) -> Self {
-        let config = Module::new(config.into());
-        let addon_manager = AddonManager::new().to_module();
-
-        let input = Input::new().to_module();
-
-        let world = World::new().to_module();
-        let window = Window::new().to_module();
-
-        Self {
-            config,
-            addon_manager,
-
-            input,
-
-            world,
-            window,
-        }
-    }
+pub struct ClientIO {
+    pub input_io: Receiver<InputInfo>,
 }
 
-pub fn init<I>(config: Config, input: Vec<(impl Into<String>, Vec<InputType>)>, init: I) where I: FnOnce(&mut Client) {
-    let mut client = Client::new(config);
-    init(&mut client);
+pub fn init<I, F, S: 'static>(config: Config, init: I, frame: F)
+where
+    I: FnOnce(&mut Client, &ClientIO, (&mut World, ())) -> S,
+    F: Fn(&mut S, &mut Client, &ClientIO) + 'static,
+{
+    // Thread local
+    let addon_manager = AddonManager::load(config.addons.0.clone());
+    let (input_io, input) = Input::new();
 
-    client.input.write().unwrap().add_actions(input);
+    // Threaded
+    let (_, mut world) = World::new();
 
-    let args = client.world.clone();
+    let mut client = Client {
+        config,
+        addon_manager,
+        input,
+    };
+
+    let client_io = ClientIO {
+        input_io,
+    };
+
+    let state = init(
+        &mut client,
+        &client_io,
+        (
+            &mut world,
+            ()
+        ),
+    );
+
     thread::spawn(|| {
-        World::run(args, ());
+        world.run(());
     });
 
-    let args = (client.window.clone(), client.config.clone(), client.addon_manager.clone(), client.input.clone(), client.world.clone());
-    Window::run(args.0, (args.1, args.2, args.3, args.4));
+    // TODO: lua vms inside addon manager on separate thread
+
+    let (_, window) = Window::new();
+    window.run((state, client, client_io, frame));
 }

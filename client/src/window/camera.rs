@@ -1,7 +1,4 @@
-use shared::{
-    extra::{perspective, Deg, InnerSpace, Matrix4, Point3, Vector3},
-    Module,
-};
+use shared::extra::{perspective, Deg, InnerSpace, Matrix4, Point3, Vector3, Result};
 
 use crate::input::Input;
 
@@ -54,19 +51,17 @@ impl CameraController {
         }
     }
 
-    pub fn process_input(&mut self, input: &Module<Input>) {
-        let input = input.read().unwrap();
-
-        self.is_forward_pressed = e(input.query_action_strength("forward").unwrap());
-        self.is_backward_pressed = e(input.query_action_strength("backward").unwrap());
-        self.is_left_pressed = e(input.query_action_strength("left").unwrap());
-        self.is_right_pressed = e(input.query_action_strength("right").unwrap());
-        self.is_up_pressed = e(input.query_action_strength("up").unwrap());
-        self.is_down_pressed = e(input.query_action_strength("down").unwrap());
+    pub fn process_input(&mut self, input: &Input) {
+        self.is_forward_pressed = e(input.query_action_strength("forward"));
+        self.is_backward_pressed = e(input.query_action_strength("backward"));
+        self.is_left_pressed = e(input.query_action_strength("left"));
+        self.is_right_pressed = e(input.query_action_strength("right"));
+        self.is_up_pressed = e(input.query_action_strength("up"));
+        self.is_down_pressed = e(input.query_action_strength("down"));
 
         // Temporary until camera overhaul
-        fn e(strength: f32) -> bool {
-            strength.round() as u8 != 0
+        fn e(strength: Result<f32>) -> bool {
+            strength.unwrap_or_default().round() as u8 != 0
         }
     }
 

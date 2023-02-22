@@ -1,6 +1,6 @@
-use std::{collections::HashMap, iter, num::NonZeroU32, sync::RwLockReadGuard};
+use std::{collections::HashMap, iter, num::NonZeroU32};
 
-use shared::{extra::Vector3, resources, util::GetOrInsert, Module, addons::AddonManager, direction::Direction};
+use shared::{extra::Vector3, resources, util::GetOrInsert, addons::AddonManager, direction::Direction};
 use wgpu::{util::DeviceExt, Backends, Features, InstanceDescriptor, TextureView};
 use winit::window::Window;
 
@@ -37,7 +37,6 @@ pub struct WindowSurface {
     texture_bind_group: wgpu::BindGroup,
     camera: Camera,
     pub camera_controller: CameraController,
-    //projection: Projection,
     camera_uniform: CameraUniform,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
@@ -46,7 +45,7 @@ pub struct WindowSurface {
 }
 
 impl WindowSurface {
-    pub async fn new(window: Window, client_config: &Module<Config>, addon_manager: &Module<AddonManager>) -> Self {
+    pub async fn new(window: Window, client_config: &Config, addon_manager: &AddonManager) -> Self {
         let size = window.inner_size();
 
         let instance = wgpu::Instance::new(InstanceDescriptor {
@@ -98,7 +97,7 @@ impl WindowSurface {
         let mut texture_index: Vec<Texture> = vec![];
         let mut textures: HashMap<String, HashMap<String, usize>> = HashMap::new();
         
-        for entry in resources::read_dir(&client_config.read().unwrap().addons.0).unwrap() {
+        for entry in resources::read_dir(&client_config.addons.0).unwrap() {
             let file_name = entry.as_ref().unwrap().file_name();
             let namespace = file_name.to_str().unwrap();
             let textures_folder = entry.unwrap().path().join("textures");
@@ -172,68 +171,59 @@ impl WindowSurface {
 
         // ============================= QUADS =============================
         fn quad(
-            addon_manager: &RwLockReadGuard<AddonManager>,
+            addon_manager: &AddonManager,
             textures: &HashMap<String, HashMap<String, usize>>,
-            id: u32,
             position: Vector3<f32>,
             direction: Direction,
-            index: u16
+            index: u16,
         ) -> Quad {
-            block_quad(addon_manager, textures, "example", id, position, direction, index)
+            block_quad(addon_manager, textures, "example", 0, position, direction, index)
         }
 
-        let quad_addons = addon_manager.read().unwrap();
         let quads = [
             quad(
-                &quad_addons,
+                &addon_manager,
                 &textures,
-                0,
                 Vector3::new(0.0, 0.5, 0.0),
                 Direction::UP,
                 0,
             ),
             quad(
-                &quad_addons,
+                &addon_manager,
                 &textures,
-                0,
                 Vector3::new(0.0, -0.5, 0.0),
                 Direction::DOWN,
                 1,
             ),
             quad(
-                &quad_addons,
+                &addon_manager,
                 &textures,
-                0,
                 Vector3::new(0.0, 0.0, -0.5),
                 Direction::NORTH,
                 2,
             ),
             quad(
-                &quad_addons,
+                &addon_manager,
                 &textures,
-                0,
                 Vector3::new(0.0, 0.0, 0.5),
                 Direction::SOUTH,
                 3,
             ),
             quad(
-                &quad_addons,
+                &addon_manager,
                 &textures,
-                0,
                 Vector3::new(-0.5, 0.0, 0.0),
                 Direction::WEST,
                 4,
             ),
             quad(
-                &quad_addons,
+                &addon_manager,
                 &textures,
-                0,
                 Vector3::new(0.5, 0.0, 0.0),
                 Direction::EAST,
                 5,
             ),
         ];
-        drop(quad_addons);
 
         let mut vertices = vec![];
         let mut indices: Vec<u16> = vec![];
@@ -294,7 +284,7 @@ impl WindowSurface {
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader"),
-            source: wgpu::ShaderSource::Wgsl(client_config.read().unwrap().shader.0.clone().into()),
+            source: wgpu::ShaderSource::Wgsl(client_config.shader.0.clone().into()),
         });
 
         let depth_texture = Texture::create_depth_texture(&device, &config, "depth_texture");
@@ -331,7 +321,7 @@ impl WindowSurface {
                 strip_index_format: None,
                 front_face: wgpu::FrontFace::Ccw,
                 cull_mode: Some(wgpu::Face::Back),
-                polygon_mode: client_config.read().unwrap().debug.0,
+                polygon_mode: client_config.debug.0,
                 unclipped_depth: false,
                 conservative: false,
             },

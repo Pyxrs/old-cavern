@@ -1,7 +1,15 @@
-use shared::InnerModule;
+use shared::Module;
 
 struct Network {
     //
 }
 
-impl InnerModule<()> for Network {}
+impl Module<(), ()> for Network {
+    fn new() -> ((), Self) {
+        todo!()
+    }
+
+    fn run(self, _args: ()) {
+        todo!()
+    }
+}

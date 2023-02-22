@@ -2,7 +2,7 @@ use std::{collections::HashMap, path::Path};
 
 use mlua::{Lua, Table};
 
-use crate::{resources, InnerModule, direction::Direction};
+use crate::{resources, direction::Direction};
 
 // TODO: Addon toml settings and addon priority for feature overrides
 
@@ -25,19 +25,22 @@ impl AddonManager {
         }
     }
 
-    pub fn load(&mut self, addon_path: impl AsRef<Path>) {
+    pub fn load(addon_path: impl AsRef<Path>) -> Self {
+        let mut manager = Self::new();
+
         for entry in resources::read_dir(addon_path).unwrap() {
             let addon = Addon::new();
-            self.addons.push(addon);
+            manager.addons.push(addon);
             
-            self.load_blocks(entry.unwrap().path());
+            manager.load_blocks(entry.unwrap().path());
             // TODO: Make load items function
         }
+
+        manager
     }
 
     pub fn reload(&mut self, addon_path: impl AsRef<Path>) {
-        *self = Self::new();
-        self.load(addon_path);
+        *self = Self::load(addon_path);
     }
 
     pub fn get(&self, index: &Type) -> Table {
@@ -49,17 +52,22 @@ impl AddonManager {
         let block = self.get(index);
         let textures: Table = block.get("textures").unwrap();
 
-        fn side(direction: String, textures: &Table) -> String {
+        fn face(direction: String, textures: &Table, side: bool) -> String {
             if let Ok(up) = textures.get(direction) {
                 return up;
             }
-            textures.get("side").unwrap()
+            if side {
+                if let Ok(side) = textures.get("side") {
+                    return side;
+                }
+            }
+            textures.get("all").unwrap()
         }
 
         match direction {
-            Direction::UP => textures.get("up").unwrap(),
-            Direction::DOWN => textures.get("down").unwrap(),
-            direction => side(direction.get_string(), &textures),
+            Direction::UP => face(direction.get_string(), &textures, false),
+            Direction::DOWN => face(direction.get_string(), &textures, false),
+            direction => face(direction.get_string(), &textures, true),
         }
     }
 
@@ -106,8 +114,6 @@ impl AddonManager {
         }
     }
 }
-
-impl InnerModule<()> for AddonManager {}
 
 struct Addon {
 }

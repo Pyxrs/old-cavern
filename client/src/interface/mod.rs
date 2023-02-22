@@ -1,7 +1,15 @@
-use shared::InnerModule;
+use shared::Module;
 
 struct Interface {
     //
 }
 
-impl InnerModule<()> for Interface {}
+impl Module<(), ()> for Interface {
+    fn new() -> ((), Self) {
+        todo!()
+    }
+
+    fn run(self, _args: ()) {
+        todo!()
+    }
+}
