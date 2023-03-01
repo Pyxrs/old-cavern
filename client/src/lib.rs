@@ -1,8 +1,10 @@
-use std::thread;
+// TODO: Use bbmodel format directly
+
+use std::{thread, sync::mpsc::Receiver};
 
 use config::Config;
 use input::{Input, InputInfo};
-use shared::{addons::AddonManager, extra::Receiver, Module, StaticModule};
+use shared::{addons::AddonManager, Module, StaticModule};
 use window::Window;
 use world::World;
 
@@ -25,17 +27,19 @@ pub struct ClientIO {
     pub input_io: Receiver<InputInfo>,
 }
 
-pub fn init<I, F, S: 'static>(config: Config, init: I, frame: F)
+#[profiling::function]
+pub fn init<I, F, E, S: 'static>(config: Config, init: I, frame: F, exit: E)
 where
     I: FnOnce(&mut Client, &ClientIO, (&mut World, ())) -> S,
     F: Fn(&mut S, &mut Client, &ClientIO) + 'static,
+    E: Fn(&mut S, &mut Client, &ClientIO) + 'static,
 {
     // Thread local
     let addon_manager = AddonManager::load(config.addons.0.clone());
-    let (input_io, input) = Input::new();
+    let (input_io, input) = Input::new(());
 
     // Threaded
-    let (_, mut world) = World::new();
+    let (_, mut world) = World::new(());
 
     let mut client = Client {
         config,
@@ -57,11 +61,12 @@ where
     );
 
     thread::spawn(|| {
+        profiling::register_thread!("World");
         world.run(());
     });
 
     // TODO: lua vms inside addon manager on separate thread
 
-    let (_, window) = Window::new();
-    window.run((state, client, client_io, frame));
+    let (_, window) = Window::new(());
+    window.run((state, client, client_io, frame, exit));
 }

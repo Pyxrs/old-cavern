@@ -1,7 +1,7 @@
-Block.namespace = "example"
 Block.id = 1
 
-Block.textures = {
+Block.model = {
+    model = "cube",
     all = "dirt",
 }
 

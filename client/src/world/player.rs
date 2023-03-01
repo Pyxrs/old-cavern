@@ -1,4 +1,4 @@
-use shared::{extra::Vector3, util::zero::Zeroable};
+use shared::extra::{Vector3, Zero};
 
 pub struct Player {
     pub position: Vector3<f32>,

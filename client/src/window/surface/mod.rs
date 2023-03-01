@@ -1,4 +1,4 @@
-use std::{collections::HashMap, iter, num::NonZeroU32};
+use std::{collections::HashMap, iter, num::NonZeroU32, time::Instant};
 
 use shared::{extra::Vector3, resources, util::GetOrInsert, addons::AddonManager, direction::Direction};
 use wgpu::{util::DeviceExt, Backends, Features, InstanceDescriptor, TextureView};
@@ -6,7 +6,7 @@ use winit::window::Window;
 
 use crate::{config::Config, mesher::quad::{block_quad, Quad}};
 
-use self::{uniforms::CameraUniform, vertex::Vertex};
+use self::{uniforms::{CameraUniform, SkyUniform}, vertex::Vertex};
 
 use super::{
     camera::{Camera, CameraController},
@@ -25,6 +25,7 @@ pub const OPENGL_TO_WGPU_MATRIX: shared::extra::Matrix4<f32> = shared::extra::Ma
 );
 
 pub struct WindowSurface {
+    start: Instant,
     surface: wgpu::Surface,
     device: wgpu::Device,
     queue: wgpu::Queue,
@@ -40,12 +41,17 @@ pub struct WindowSurface {
     camera_uniform: CameraUniform,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
+    sky_uniform: SkyUniform,
+    sky_buffer: wgpu::Buffer,
+    sky_bind_group: wgpu::BindGroup,
     depth_texture: Texture,
     window: Window,
 }
 
 impl WindowSurface {
+    #[profiling::function]
     pub async fn new(window: Window, client_config: &Config, addon_manager: &AddonManager) -> Self {
+        let start = Instant::now();
         let size = window.inner_size();
 
         let instance = wgpu::Instance::new(InstanceDescriptor {
@@ -170,6 +176,7 @@ impl WindowSurface {
         });
 
         // ============================= QUADS =============================
+        #[profiling::function]
         fn quad(
             addon_manager: &AddonManager,
             textures: &HashMap<String, HashMap<String, usize>>,
@@ -238,6 +245,8 @@ impl WindowSurface {
         }
         // ============================= QUADS =============================
 
+        let sky_uniform = SkyUniform::new();
+
         let camera = Camera {
             eye: (0.0, 5.0, 10.0).into(),
             target: (0.0, 0.0, 0.0).into(),
@@ -282,6 +291,36 @@ impl WindowSurface {
             label: Some("camera_bind_group"),
         });
 
+        let sky_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Sky Buffer"),
+            contents: bytemuck::cast_slice(&[sky_uniform]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let sky_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+                label: Some("sky_bind_group_layout"),
+            });
+
+        let sky_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &sky_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: sky_buffer.as_entire_binding(),
+            }],
+            label: Some("sky_bind_group"),
+        });
+
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader"),
             source: wgpu::ShaderSource::Wgsl(client_config.shader.0.clone().into()),
@@ -292,7 +331,7 @@ impl WindowSurface {
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[&texture_bind_group_layout, &camera_bind_group_layout],
+                bind_group_layouts: &[&texture_bind_group_layout, &camera_bind_group_layout, &sky_bind_group_layout],
                 push_constant_ranges: &[],
             });
 
@@ -337,8 +376,6 @@ impl WindowSurface {
                 mask: !0,
                 alpha_to_coverage_enabled: false,
             },
-            // If the pipeline will be used with a multiview render pass, this
-            // indicates how many array layers the attachments will have.
             multiview: None,
         });
 
@@ -355,6 +392,7 @@ impl WindowSurface {
         let num_indices = indices.len() as u32;
 
         Self {
+            start,
             surface,
             device,
             queue,
@@ -370,15 +408,20 @@ impl WindowSurface {
             camera_buffer,
             camera_bind_group,
             camera_uniform,
+            sky_buffer,
+            sky_bind_group,
+            sky_uniform,
             depth_texture,
             window,
         }
     }
 
+    #[profiling::function]
     pub fn window(&self) -> &Window {
         &self.window
     }
 
+    #[profiling::function]
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
         if new_size.width > 0 && new_size.height > 0 {
             self.size = new_size;
@@ -391,6 +434,7 @@ impl WindowSurface {
         }
     }
 
+    #[profiling::function]
     pub fn update(&mut self, _delta: f32) {
         self.camera_controller.update_camera(&mut self.camera);
         self.camera_uniform.update_view_proj(&self.camera);
@@ -399,8 +443,17 @@ impl WindowSurface {
             0,
             bytemuck::cast_slice(&[self.camera_uniform]),
         );
+
+        // TODO: Sky updates
+        self.sky_uniform.update_sun(self.start);
+        self.queue.write_buffer(
+            &self.sky_buffer,
+            0,
+            bytemuck::cast_slice(&[self.sky_uniform]),
+        );
     }
 
+    #[profiling::function]
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?;
         let view = output
@@ -440,6 +493,7 @@ impl WindowSurface {
             });
 
             render_pass.set_pipeline(&self.render_pipeline);
+            render_pass.set_bind_group(2, &self.sky_bind_group, &[]); // TODO REORDER
             render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
             render_pass.set_bind_group(0, &self.texture_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));

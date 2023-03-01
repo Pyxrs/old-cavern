@@ -1,7 +1,7 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::mpsc::{Sender, Receiver, channel}};
 
 use shared::{
-    extra::{anyhow, debug, unbounded, Receiver, Result, Sender, Vector2, Zero, InnerSpace},
+    extra::{debug, Vector2, Zero, InnerSpace},
     util::{GetOrInsert, ThisOrThat},
     StaticModule, Ignore,
 };
@@ -33,9 +33,10 @@ pub enum InputInfo {
     MouseMotion(Vector2<f32>),
 }
 
-impl StaticModule<Receiver<InputInfo>> for Input {
-    fn new() -> (Receiver<InputInfo>, Self) {
-        let (sender, receiver) = unbounded();
+impl StaticModule<(), Receiver<InputInfo>> for Input {
+    #[profiling::function]
+    fn new(_: ()) -> (Receiver<InputInfo>, Self) {
+        let (sender, receiver) = channel();
 
         (receiver, Self {
             mouse: Mouse::default(),
@@ -47,6 +48,7 @@ impl StaticModule<Receiver<InputInfo>> for Input {
 }
 
 impl Input {
+    #[profiling::function]
     pub(crate) fn process_frame(&mut self) {
         let actions = self.inputs.get_or_insert(InputType::MouseMotion, vec![]);
         for action in actions.iter() {
@@ -64,6 +66,7 @@ impl Input {
         };
     }
 
+    #[profiling::function]
     pub(crate) fn process_input(
         input: &mut Input,
         event: ThisOrThat<&WindowEvent, &DeviceEvent>,
@@ -116,6 +119,7 @@ impl Input {
         };
     }
 
+    #[profiling::function]
     pub fn add_action(&mut self, name: impl Into<String>, inputs: Vec<InputType>) {
         let name: String = name.into();
         debug!("Action added: {}", &name);
@@ -126,6 +130,7 @@ impl Input {
         self.actions.insert(name, InputInfo::None);
     }
 
+    #[profiling::function]
     pub fn add_actions(&mut self, actions: Vec<(impl Into<String>, Vec<InputType>)>) {
         for (name, inputs) in actions {
             let name: String = name.into();
@@ -134,14 +139,16 @@ impl Input {
         }
     }
 
-    pub fn query_action(&self, name: impl Into<String>) -> Result<&InputInfo> {
+    #[profiling::function]
+    pub fn query_action(&self, name: impl Into<String>) -> Result<&InputInfo, &str> {
         self.actions
             .get(&name.into())
-            .ok_or(anyhow!("Action not found!"))
+            .ok_or("Action not found!")
     }
 
     /// Mouse scroll or motion returns the magnitude squared
-    pub fn query_action_strength(&self, name: impl Into<String>) -> Result<f32> {
+    #[profiling::function]
+    pub fn query_action_strength(&self, name: impl Into<String>) -> Result<f32, &str> {
         let input = self.query_action(name)?;
         match input {
             InputInfo::None => Ok(0.0),
@@ -169,6 +176,7 @@ impl Default for Mouse {
     }
 }
 
+#[profiling::function]
 fn button<T>(input: &mut Input, button: &ElementState, input_type: &InputType, input_value: T)
 where
     T: Fn(&ElementState) -> InputInfo,
@@ -190,6 +198,6 @@ where
 
         *action = input_value(button);
 
-        input.sender.try_send(*action).ignore();
+        input.sender.send(*action).ignore();
     }
 }

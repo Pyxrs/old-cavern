@@ -2,9 +2,9 @@ use config::Config;
 use shared::addons::AddonManager;
 
 pub mod pathfinding;
-pub mod network;
 pub mod terrain;
 pub mod config;
+pub mod network;
 
 pub struct Server {
     pub config: Config,
@@ -14,6 +14,7 @@ pub struct Server {
 pub struct ServerIO {
 }
 
+#[profiling::function]
 pub fn init<I, F, S>(config: Config, init: I, frame: F)
 where
     I: FnOnce(&mut Server, &ServerIO, ()) -> S,

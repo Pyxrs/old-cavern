@@ -1,17 +1,20 @@
-use std::fmt::Debug;
+/*use std::fmt::Debug;
 
 pub struct Item {
     pub namespace: String,
     pub id: u32,
 
-    pub on_use: Box<dyn Fn(&mut Self, Target, Hand) + Send + Sync>,
-    pub on_update: Box<dyn Fn(&mut Self, Location) + Send + Sync>,
+    pub on_use: Box<dyn 
+fn(&mut Self, Target, Hand) + Send + Sync>,
+    pub on_update: Box<dyn 
+fn(&mut Self, Location) + Send + Sync>,
 
     pub description: String,
 }
 
 impl Debug for Item {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    
+fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Item").field("namespace", &self.namespace).field("id", &self.id).finish()
     }
 }
@@ -37,14 +40,17 @@ pub struct ItemBuilder {
     namespace: String,
     id: u32,
 
-    on_use: Option<Box<dyn Fn(&mut Item, Target, Hand) + Send + Sync + 'static>>,
-    on_update: Option<Box<dyn Fn(&mut Item, Location) + Send + Sync + 'static>>,
+    on_use: Option<Box<dyn 
+fn(&mut Item, Target, Hand) + Send + Sync + 'static>>,
+    on_update: Option<Box<dyn 
+fn(&mut Item, Location) + Send + Sync + 'static>>,
 
     description: Option<String>,
 }
 
 impl ItemBuilder {
-    pub fn new(namespace: impl Into<String>, id: u32) -> ItemBuilder {
+    pub 
+fn new(namespace: impl Into<String>, id: u32) -> ItemBuilder {
         Self {
             namespace: namespace.into(),
             id,
@@ -54,22 +60,28 @@ impl ItemBuilder {
         }
     }
 
-    pub fn on_use<F>(mut self, function: F) -> Self where F: Fn(&mut Item, Target, Hand) + Send + Sync + 'static {
+    pub 
+fn on_use<F>(mut self, function: F) -> Self where F: 
+fn(&mut Item, Target, Hand) + Send + Sync + 'static {
         self.on_use = Some(Box::new(function));
         self
     }
     
-    pub fn on_update<F>(mut self, function: F) -> Self where F: Fn(&mut Item, Location) + Send + Sync + 'static {
+    pub 
+fn on_update<F>(mut self, function: F) -> Self where F: 
+fn(&mut Item, Location) + Send + Sync + 'static {
         self.on_update = Some(Box::new(function));
         self
     }
 
-    pub fn description(mut self, text: impl Into<String>) -> Self {
+    pub 
+fn description(mut self, text: impl Into<String>) -> Self {
         self.description = Some(text.into());
         self
     }
 
-    pub fn build(self) -> Item {
+    pub 
+fn build(self) -> Item {
         Item {
             namespace: self.namespace,
             id: self.id,
@@ -80,4 +92,4 @@ impl ItemBuilder {
             description: self.description.unwrap_or_default(),
         }
     }
-}
+}*/

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use shared::{extra::Vector3, direction::Direction, addons::{AddonManager, Type}};
+use shared::{extra::{Vector3, Vector4, Vector2, Zero}, direction::Direction, addons::{AddonManager}, types::{Id, Type}};
 
 use crate::window::surface::vertex::Vertex;
 
@@ -26,6 +26,7 @@ pub struct Quad {
     pub indices: [u16; 6],
 }
 
+#[profiling::function]
 pub fn block_quad(
     addon_manager: &AddonManager,
     textures: &HashMap<String, HashMap<String, usize>>,
@@ -37,57 +38,58 @@ pub fn block_quad(
 ) -> Quad {
     let namespace = namespace.into();
 
-    let texture_name = addon_manager.get_block_texture(&Type::Block(namespace.clone(), id), &direction);
+    let texture_name = addon_manager.get_block_texture(&Id::new(Type::Block, namespace.clone(), id), &direction);
     let texture_index = textures.get(&namespace).unwrap().get(&texture_name).unwrap();
-    quad(position, 0.5, index, direction, true, *texture_index as u32)
+    quad(position, 0.5, index, direction, false, *texture_index as u32)
 }
 
+#[profiling::function]
 pub fn quad(
     position: Vector3<f32>,
     size: f32,
     index: u16,
     direction: Direction,
-    lighting: bool, // TODO: Actual lighting
+    lighting: bool, // TODO: Actual lighting. Remember, store all 4 directions of sunlight per block
     texture_index: u32,
 ) -> Quad {
 
-    let light = if lighting {
+    let block_light_temp = if lighting {
         match direction {
-            Direction::UP => 1.0,
-            Direction::DOWN => 0.25,
-            Direction::NORTH => 0.5,
-            Direction::SOUTH => 0.5,
-            Direction::WEST => 0.75,
-            Direction::EAST => 0.25,
+            Direction::UP => 15,
+            Direction::DOWN => 4,
+            Direction::NORTH => 8,
+            Direction::SOUTH => 8,
+            Direction::WEST => 12,
+            Direction::EAST => 4,
         }
     } else {
-        1.0
+        0
     };
 
     let mut vertices = [
         Vertex {
             position: [0.0, 0.0, 0.0],
-            tex_coords: [0.0, 0.0],
-            index: texture_index,
-            light,
+            normal: [0.0, 0.0, 0.0],
+            texture_index,
+            data: 0,
         },
         Vertex {
             position: [0.0, 0.0, 0.0],
-            tex_coords: [0.0, 1.0],
-            index: texture_index,
-            light,
+            normal: [0.0, 0.0, 0.0],
+            texture_index,
+            data: 0,
         },
         Vertex {
             position: [0.0, 0.0, 0.0],
-            tex_coords: [1.0, 1.0],
-            index: texture_index,
-            light,
+            normal: [0.0, 0.0, 0.0],
+            texture_index,
+            data: 0,
         },
         Vertex {
             position: [0.0, 0.0, 0.0],
-            tex_coords: [1.0, 0.0],
-            index: texture_index,
-            light,
+            normal: [0.0, 0.0, 0.0],
+            texture_index,
+            data: 0,
         }
     ];
 
@@ -101,17 +103,33 @@ pub fn quad(
         vertex.position[0] += position.x;
         vertex.position[1] += position.y;
         vertex.position[2] += position.z;
-    }
+        
+        let normal = direction.get_vec();
+        vertex.normal[0] = normal.x as f32;
+        vertex.normal[1] = normal.y as f32;
+        vertex.normal[2] = normal.z as f32;
 
-    // Fix rotated textures in some directions
-    match direction {
-        Direction::WEST | Direction::EAST => {
-            vertices[0].tex_coords = [0.0, 1.0];
-            vertices[1].tex_coords = [1.0, 1.0];
-            vertices[2].tex_coords = [1.0, 0.0];
-            vertices[3].tex_coords = [0.0, 0.0];
-        },
-        _ => {},
+        vertex.data = Vertex::encode(
+            Vector4::new(block_light_temp, block_light_temp, block_light_temp, 15),
+            if direction == Direction::WEST || direction == Direction::EAST {
+                // Fix rotated textures in some directions
+                match index {
+                    0 => Vector2::new(0, 1),
+                    1 => Vector2::new(1, 1),
+                    2 => Vector2::new(1, 0),
+                    3 => Vector2::new(0, 0),
+                    _ => Vector2::zero(),
+                }
+            } else {
+                match index {
+                    0 => Vector2::new(0, 0),
+                    1 => Vector2::new(0, 1),
+                    2 => Vector2::new(1, 1),
+                    3 => Vector2::new(1, 0),
+                    _ => Vector2::zero(),
+                }
+            }
+        );
     }
 
     let reversed = (direction.get_id() + 1) % 2 != 0;

@@ -1,25 +1,25 @@
-use crossbeam_channel::{Sender, Receiver};
+use std::sync::mpsc::{Sender, Receiver};
 
 pub mod extra {
     pub use log::*;
     pub use cgmath::*;
-    pub use crossbeam_channel::*;
-    pub use anyhow::*;
+    pub use uflow::*;
 }
 
+pub mod packets;
 pub mod types;
 pub mod addons;
+pub mod broadcast;
 pub mod direction;
-pub mod packets;
 pub mod resources;
 pub mod util;
 
-pub trait StaticModule<A> {
-    fn new() -> (A, Self);
+pub trait StaticModule<I, A> {
+    fn new(initial: I) -> (A, Self);
 }
 
-pub trait Module<A, E> {
-    fn new() -> (A, Self);
+pub trait Module<I, A, E> {
+    fn new(initial: I) -> (A, Self);
     fn run(self, args: E);
 }
 
@@ -32,6 +32,7 @@ pub struct Query<R, P> {
 }
 
 impl<R, P> Query<R, P> {
+    #[profiling::function]
     pub fn new(request: (Sender<R>, Receiver<R>), payload: (Sender<P>, Receiver<P>)) -> Self {
         Self {
             request: request.0,
@@ -42,9 +43,10 @@ impl<R, P> Query<R, P> {
         }
     }
 
+    #[profiling::function]
     pub fn update<F>(&mut self, send: F) where F: Fn(R) -> P {
         for request in self.local_request.try_iter() {
-            let _ = self.local_payload.try_send(send(request));
+            let _ = self.local_payload.send(send(request));
         }
     }
 }

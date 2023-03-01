@@ -8,13 +8,15 @@ pub struct World {
     pub player: Player,
 }
 
-impl Module<(), ()> for World {
-    fn new() -> ((), Self) {
+impl Module<(), (), ()> for World {
+    #[profiling::function]
+    fn new(_: ()) -> ((), Self) {
         ((), Self {
             player: Player::new(),
         })
     }
 
+    #[profiling::function]
     fn run(self, _args: ()) {
     }
 }

@@ -1,7 +1,7 @@
-Block.namespace = "example"
 Block.id = -1
 
-Block.textures = {
+Block.model = {
+    model = "cube", -- BTW specify the namespace if you want but it defaults to current namespace
     up = "grass_top",
     down = "dirt",
     side = "grass_side",
@@ -11,11 +11,11 @@ Block.states = {
     { type = rotation, axis = "x", placement = PlacementState.Random },
 }
 
-function Block:on_random_update()
+function Block:on_random_update(visible)
     return
 end
 
-function Block:on_neighbor_update()
+function Block:on_neighbor_update(visible)
     return
 end
 

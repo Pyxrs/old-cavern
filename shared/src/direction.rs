@@ -11,6 +11,7 @@ pub enum Direction {
 }
 
 impl Direction {
+    #[profiling::function]
     pub fn get(id: u8) -> Direction {
         match id {
             0 => Direction::UP,
@@ -22,6 +23,7 @@ impl Direction {
             _ => panic!("Invalid ID!"),
         }
     }
+    #[profiling::function]
     pub fn get_vec(&self) -> Vector3<i8> {
         match self {
             Direction::UP => Vector3::new(0, 1, 0),
@@ -32,6 +34,7 @@ impl Direction {
             Direction::EAST => Vector3::new(-1, 0, 0),
         }
     }
+    #[profiling::function]
     pub fn get_id(&self) -> u8 {
         match self {
             Direction::UP => 0,
@@ -42,6 +45,7 @@ impl Direction {
             Direction::EAST => 5,
         }
     }
+    #[profiling::function]
     pub fn get_string(&self) -> String {
         match self {
             Direction::UP => String::from("up"),

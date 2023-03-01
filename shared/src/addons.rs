@@ -2,31 +2,27 @@ use std::{collections::HashMap, path::Path};
 
 use mlua::{Lua, Table};
 
-use crate::{resources, direction::Direction};
+use crate::{resources, direction::Direction, types::{Id, Type}};
 
 // TODO: Addon toml settings and addon priority for feature overrides
-
-#[derive(Debug, Eq, Hash, PartialEq)]
-pub enum Type {
-    Block(String, u32),
-    Item(String, u32),
-}
-
 pub struct AddonManager {
     addons: Vec<Addon>,
-    data: HashMap<Type, Lua>,
+    data: HashMap<Id, Lua>,
 }
 
-impl AddonManager {
-    pub fn new() -> Self {
+impl Default for AddonManager {
+    fn default() -> Self {
         Self {
             addons: vec![],
             data: HashMap::new(),
         }
     }
+}
 
+impl AddonManager {
+    #[profiling::function]
     pub fn load(addon_path: impl AsRef<Path>) -> Self {
-        let mut manager = Self::new();
+        let mut manager = Self::default();
 
         for entry in resources::read_dir(addon_path).unwrap() {
             let addon = Addon::new();
@@ -39,16 +35,19 @@ impl AddonManager {
         manager
     }
 
+    #[profiling::function]
     pub fn reload(&mut self, addon_path: impl AsRef<Path>) {
         *self = Self::load(addon_path);
     }
 
-    pub fn get(&self, index: &Type) -> Table {
+    #[profiling::function]
+    pub fn get(&self, index: &Id) -> Table {
         let lua = self.data.get(index).expect(&format!("Addon content index {:?} does not exist", index));
         lua.globals().get("Block").unwrap()
     }
 
-    pub fn get_block_texture(&self, index: &Type, direction: &Direction) -> String {
+    #[profiling::function]
+    pub fn get_block_texture(&self, index: &Id, direction: &Direction) -> String {
         let block = self.get(index);
         let textures: Table = block.get("textures").unwrap();
 
@@ -71,6 +70,7 @@ impl AddonManager {
         }
     }
 
+    #[profiling::function]
     fn load_blocks(&mut self, path: impl AsRef<Path>) { // TODO: More verbose errors
         for entry in resources::read_dir(path.as_ref().join("blocks")).unwrap() {
             let Ok(code) = resources::read_dir_entry_string(entry.as_ref().unwrap(), Some("lua")) else { continue };
@@ -110,7 +110,7 @@ impl AddonManager {
             let id = block.get("id").unwrap();
             drop(block);
 
-            self.data.insert(Type::Block(namespace, id), lua);
+            self.data.insert(Id::new(Type::Block, namespace, id), lua);
         }
     }
 }

@@ -11,3 +11,8 @@ server = { path = "../server" }
 shared = { path = "../shared" }
 
 simple_logger = "4.0"
+profiling = "1.0"
+optick = "1.3"
+
+[features]
+profile = ["profiling/profile-with-optick"]

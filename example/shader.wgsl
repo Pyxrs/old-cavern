@@ -6,32 +6,40 @@ struct CameraUniform {
 @group(1) @binding(0)
 var<uniform> camera: CameraUniform;
 
+struct SkyUniform {
+    sun_angle: vec3<f32>,
+    padding: f32,
+}
 @group(2) @binding(0)
-var<uniform> sun_angle: vec2<f32>;
+var<uniform> sky: SkyUniform;
 
 struct VertexInput {
     @location(0) position: vec3<f32>,
-    @location(1) tex_coords: vec2<f32>,
+    @location(1) normal: vec3<f32>,
     @location(2) index: u32,
-    @location(3) light: u32,
+    @location(3) data: u32,
 };
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
-    @location(0) tex_coords: vec2<f32>,
-    @location(1) index: u32,
-    @location(2) light: u32,
+    @location(0) normal: vec3<f32>,
+    @location(2) index: u32,
+    @location(3) light: vec4<f32>,
+    @location(4) tex_coords: vec2<f32>,
 };
 
 @vertex
 fn vs_main(
-    model: VertexInput,
+    in: VertexInput,
 ) -> VertexOutput {
+    let data = decode(in.data);
+
     var out: VertexOutput;
-    out.tex_coords = model.tex_coords;
-    out.clip_position = camera.view_proj * vec4<f32>(model.position, 1.0);
-    out.index = model.index;
-    out.light = model.light;
+    out.clip_position = camera.view_proj * vec4<f32>(in.position, 1.0);
+    out.normal = in.normal;
+    out.index = in.index;
+    out.light = data.light;
+    out.tex_coords = data.tex_coords;
     return out;
 }
 
@@ -42,25 +50,23 @@ var texture_array: binding_array<texture_2d<f32>>;
 @group(0) @binding(1)
 var sampler_: sampler;
 
-struct Light {
-    r: f32,
-    g: f32,
-    b: f32,
-    szp: f32,
-    szn: f32,
-    sxp: f32,
-    sxn: f32,
+struct Data {
+    light: vec4<f32>,
+    tex_coords: vec2<f32>,
 }
 
-fn decode_light(i: u32) -> Light {
-    return Light(
-        f32(i >> 28u) / 15.0,
-        f32((i << 4u) >> 28u) / 15.0,
-        f32((i << 8u) >> 28u) / 15.0,
-        f32((i << 12u) >> 28u) / 15.0,
-        f32((i << 16u) >> 28u) / 15.0,
-        f32((i << 20u) >> 28u) / 15.0,
-        f32((i << 24u) >> 28u) / 15.0,
+fn decode(i: u32) -> Data {
+    return Data(
+        vec4<f32>(
+            f32(i >> 28u) / 15.0,
+            f32((i << 4u) >> 28u) / 15.0,
+            f32((i << 8u) >> 28u) / 15.0,
+            f32((i << 12u) >> 28u) / 15.0,
+        ),
+        vec2<f32>(
+            f32((i << 16u) >> 31u),
+            f32((i << 17u) >> 31u),
+        )
     );
 }
 
@@ -72,12 +78,14 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         in.tex_coords,
     );
 
-    let light = decode_light(in.light);
-    let sunlight =
-        (light.szp * ((sun_angle.y + 1.0) / 2.0)) +
-        (light.szn * ((sun_angle.y - 1.0) / 2.0)) +
-        (light.sxp * ((sun_angle.x + 1.0) / 2.0)) +
-        (light.sxn * ((sun_angle.x - 1.0) / 2.0));
+    let directional_light = max(dot(sky.sun_angle, in.normal), 0.0) * in.light.w;
+    let ambient_light = vec3<f32>(0.1, 0.1, 0.1);
+    
+    let light = max(vec3<f32>(
+        in.light.x + directional_light,
+        in.light.y + directional_light,
+        in.light.z + directional_light,
+    ), ambient_light);
         
-    return diffuse * vec4<f32>(light.r + sunlight, light.g + sunlight, light.b + sunlight, 1.0);
+    return vec4<f32>(diffuse.xyz * min(light, vec3<f32>(1.0)), diffuse.w);
 }

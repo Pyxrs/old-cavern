@@ -1,6 +1,5 @@
 use std::num::NonZeroU32;
-use shared::extra::Result;
-use image::GenericImageView;
+use image::{GenericImageView, ImageError};
 use wgpu::TextureFormat;
 
 pub struct Texture {
@@ -12,6 +11,7 @@ pub struct Texture {
 impl Texture {
     pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 
+    #[profiling::function]
     pub fn create_depth_texture(
         device: &wgpu::Device,
         config: &wgpu::SurfaceConfiguration,
@@ -54,22 +54,24 @@ impl Texture {
         }
     }
 
+    #[profiling::function]
     pub fn from_bytes(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         bytes: &[u8],
         label: &str,
-    ) -> Result<Self> {
+    ) -> Result<Self, ImageError> {
         let img = image::load_from_memory(bytes)?;
         Self::from_image(device, queue, &img, Some(label))
     }
 
+    #[profiling::function]
     pub fn from_image(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         img: &image::DynamicImage,
         label: Option<&str>,
-    ) -> Result<Self> {
+    ) -> Result<Self, ImageError> {
         let rgba = img.to_rgba8();
         let dimensions = img.dimensions();
 

@@ -5,10 +5,16 @@ use client::{
     input::{InputType, Key},
 };
 use server::config::{LoadingDistance, SimulationDistance, ServerAddons};
-use shared::{extra::LevelFilter, resources};
+use shared::{extra::{LevelFilter, info}, resources};
 use simple_logger::SimpleLogger;
 
 fn main() {
+    // Run `cargo run --features=profile` to profile using optick
+    if cfg!(feature = "profile") {
+        optick::start_capture();
+        info!("Profiling started");
+    }
+
     // Logging
     SimpleLogger::new()
         .with_module_level("wgpu_hal", LevelFilter::Error)
@@ -21,19 +27,20 @@ fn main() {
 
     // Server
     thread::spawn(|| {
+        profiling::register_thread!("Server");
         server::init(
             server::config::Config {
                 addons: ServerAddons("example/addons/".to_string()),
                 loading_distance: LoadingDistance(12),
                 simulation_distance: SimulationDistance(14),
             },
-            |server, server_io, modules| {
+            |_server, _server_io, _modules| {
             },
-            |state, server, server_io| {
+            |_state, _server, _server_io| {
             },
         )
     });
-
+    
     client::init(
         client::config::Config {
             shader: Shader(resources::read_string("example/shader.wgsl").unwrap()),
@@ -42,7 +49,7 @@ fn main() {
             meshing_distance: MeshingDistance(12),
             gamma: Gamma(1.0),
         },
-        |client, client_io, modules| {
+        |client, _client_io, _modules| {
             client.input.add_actions(vec![
                 ("exit", vec![InputType::Key(Key::Escape)]),
                 ("forward", vec![InputType::Key(Key::W)]),
@@ -53,7 +60,12 @@ fn main() {
                 ("down", vec![InputType::Key(Key::LShift)]),
             ]);
         },
-        |state, client, client_io| {
+        |_state, _client, _client_io| {
+        },
+        |_state, _client, _client_io| {
+            if cfg!(feature = "profile") {
+                optick::stop_capture("Profile");
+            }
         },
     );
 }

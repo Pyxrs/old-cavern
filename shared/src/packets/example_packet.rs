@@ -1,11 +1,17 @@
-use super::Packet;
+use super::PacketData;
 
 pub struct ExamplePacket {
     years_left: u32,
     text: String,
 }
 
-impl Packet for ExamplePacket {
+impl PacketData for ExamplePacket {
+    #[profiling::function]
+    fn id() -> u32 {
+        0
+    }
+
+    #[profiling::function]
     fn serialize(self) -> Vec<u8> {
         let mut bytes = vec![];
         bytes.extend(self.years_left.to_be_bytes());
@@ -13,6 +19,7 @@ impl Packet for ExamplePacket {
         bytes
     }
 
+    #[profiling::function]
     fn deserialize(bytes: &[u8]) -> Self {
         let yl_bytes = &bytes[0..4];
         let t_bytes = &bytes[4..];

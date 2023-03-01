@@ -1,4 +1,4 @@
-use shared::extra::{perspective, Deg, InnerSpace, Matrix4, Point3, Vector3, Result};
+use shared::extra::{perspective, Deg, InnerSpace, Matrix4, Point3, Vector3};
 
 use crate::input::Input;
 
@@ -21,6 +21,7 @@ pub struct Camera {
 }
 
 impl Camera {
+    #[profiling::function]
     pub fn build_view_projection_matrix(&self) -> Matrix4<f32> {
         let view = Matrix4::look_at_rh(self.eye, self.target, self.up);
         let proj = perspective(Deg(self.fovy), self.aspect, self.znear, self.zfar);
@@ -39,6 +40,7 @@ pub struct CameraController {
 }
 
 impl CameraController {
+    #[profiling::function]
     pub fn new(speed: f32) -> Self {
         Self {
             speed,
@@ -51,6 +53,7 @@ impl CameraController {
         }
     }
 
+    #[profiling::function]
     pub fn process_input(&mut self, input: &Input) {
         self.is_forward_pressed = e(input.query_action_strength("forward"));
         self.is_backward_pressed = e(input.query_action_strength("backward"));
@@ -60,11 +63,12 @@ impl CameraController {
         self.is_down_pressed = e(input.query_action_strength("down"));
 
         // Temporary until camera overhaul
-        fn e(strength: Result<f32>) -> bool {
+        fn e(strength: Result<f32, &str>) -> bool {
             strength.unwrap_or_default().round() as u8 != 0
         }
     }
 
+    #[profiling::function]
     pub fn update_camera(&self, camera: &mut Camera) {
         let forward = camera.target - camera.eye;
         let forward_norm = forward.normalize();

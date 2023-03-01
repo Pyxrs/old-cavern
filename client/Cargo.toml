@@ -11,4 +11,4 @@ wgpu = { git = "https://github.com/gfx-rs/wgpu" }
 winit = "0.28"
 image = "0.24"
 pollster = "0.3"
-uflow = "0.7"
+profiling = "1.0"
