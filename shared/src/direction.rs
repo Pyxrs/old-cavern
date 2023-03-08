@@ -1,4 +1,4 @@
-use cgmath::Vector3;
+use glam::IVec3;
 
 #[derive(Hash, Eq, PartialEq, Debug, Clone, Copy)]
 pub enum Direction {
@@ -11,7 +11,6 @@ pub enum Direction {
 }
 
 impl Direction {
-    #[profiling::function]
     pub fn get(id: u8) -> Direction {
         match id {
             0 => Direction::UP,
@@ -23,18 +22,16 @@ impl Direction {
             _ => panic!("Invalid ID!"),
         }
     }
-    #[profiling::function]
-    pub fn get_vec(&self) -> Vector3<i8> {
+    pub fn get_normal(&self) -> IVec3 {
         match self {
-            Direction::UP => Vector3::new(0, 1, 0),
-            Direction::DOWN => Vector3::new(0, -1, 0),
-            Direction::NORTH => Vector3::new(0, 0, -1),
-            Direction::SOUTH => Vector3::new(0, 0, 1),
-            Direction::WEST => Vector3::new(1, 0, 0),
-            Direction::EAST => Vector3::new(-1, 0, 0),
+            Direction::UP => IVec3::new(0, 1, 0),
+            Direction::DOWN => IVec3::new(0, -1, 0),
+            Direction::NORTH => IVec3::new(0, 0, -1),
+            Direction::SOUTH => IVec3::new(0, 0, 1),
+            Direction::WEST => IVec3::new(1, 0, 0),
+            Direction::EAST => IVec3::new(-1, 0, 0),
         }
     }
-    #[profiling::function]
     pub fn get_id(&self) -> u8 {
         match self {
             Direction::UP => 0,
@@ -45,7 +42,6 @@ impl Direction {
             Direction::EAST => 5,
         }
     }
-    #[profiling::function]
     pub fn get_string(&self) -> String {
         match self {
             Direction::UP => String::from("up"),

@@ -1,14 +1,14 @@
 use std::collections::HashMap;
 use std::hash::{Hash, BuildHasher};
 
-use cgmath::Vector3;
+use glam::Vec3;
 
 pub fn if_let<F, O, A>(option: Option<O>, args: A, if_some: F) where F: FnOnce(O, A) {
     let Some(value) = option else { return };
     if_some(value, args);
 }
 
-pub struct BoundingBox(pub Vector3<f32>, pub Vector3<f32>);
+pub struct BoundingBox(pub Vec3, pub Vec3);
 
 pub enum ThisOrThat<I, A> {
     This(I),

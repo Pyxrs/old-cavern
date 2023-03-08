@@ -1,6 +1,6 @@
 use shared::Module;
 
-pub mod quad;
+pub mod chunk;
 
 struct Mesher {
     //

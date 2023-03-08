@@ -1,9 +1,11 @@
 use std::sync::mpsc::{Sender, Receiver};
 
-pub mod extra {
-    pub use log::*;
-    pub use cgmath::*;
+pub use log;
+pub mod network {
     pub use uflow::*;
+}
+pub mod math {
+    pub use glam::*;
 }
 
 pub mod packets;
@@ -11,6 +13,7 @@ pub mod types;
 pub mod addons;
 pub mod broadcast;
 pub mod direction;
+pub mod model;
 pub mod resources;
 pub mod util;
 

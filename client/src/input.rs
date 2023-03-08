@@ -1,9 +1,8 @@
 use std::{collections::HashMap, sync::mpsc::{Sender, Receiver, channel}};
 
 use shared::{
-    extra::{debug, Vector2, Zero, InnerSpace},
     util::{GetOrInsert, ThisOrThat},
-    StaticModule, Ignore,
+    StaticModule, Ignore, math::Vec2, log::debug,
 };
 use winit::event::{DeviceEvent, ElementState, MouseButton, MouseScrollDelta, WindowEvent};
 
@@ -29,8 +28,8 @@ pub enum InputInfo {
     None,
     Key(Key, ElementState),
     MouseButton(MouseButton, ElementState),
-    MouseScroll(Vector2<f32>),
-    MouseMotion(Vector2<f32>),
+    MouseScroll(Vec2),
+    MouseMotion(Vec2),
 }
 
 impl StaticModule<(), Receiver<InputInfo>> for Input {
@@ -61,8 +60,8 @@ impl Input {
         }
 
         self.mouse = Mouse {
-            motion: Vector2::zero(),
-            scroll: Vector2::zero(),
+            motion: Vec2::ZERO,
+            scroll: Vec2::ZERO,
         };
     }
 
@@ -101,7 +100,7 @@ impl Input {
                 // Mouse wheel
                 WindowEvent::MouseWheel { delta, .. } => {
                     if let MouseScrollDelta::PixelDelta(delta) = delta {
-                        input.mouse.scroll += Vector2::new(delta.x as f32, delta.y as f32)
+                        input.mouse.scroll += Vec2::new(delta.x as f32, delta.y as f32)
                     }
                 }
 
@@ -111,7 +110,7 @@ impl Input {
             ThisOrThat::That(device_event) => match device_event {
                 // Mouse motion
                 DeviceEvent::MouseMotion { delta } => {
-                    input.mouse.motion += Vector2::new(delta.0 as f32, delta.1 as f32);
+                    input.mouse.motion += Vec2::new(delta.0 as f32, delta.1 as f32);
                 }
 
                 _ => (),
@@ -156,22 +155,22 @@ impl Input {
                 ElementState::Pressed => Ok(1.0),
                 ElementState::Released => Ok(0.0),
             },
-            InputInfo::MouseScroll(delta) | InputInfo::MouseMotion(delta) => Ok(delta.normalize().magnitude2()),
+            InputInfo::MouseScroll(delta) | InputInfo::MouseMotion(delta) => Ok(delta.normalize().length_squared()),
         }
     }
 }
 
 #[derive(Clone, Copy)]
 pub struct Mouse {
-    pub motion: Vector2<f32>,
-    pub scroll: Vector2<f32>,
+    pub motion: Vec2,
+    pub scroll: Vec2,
 }
 
 impl Default for Mouse {
     fn default() -> Self {
         Self {
-            motion: Vector2::zero(),
-            scroll: Vector2::zero(),
+            motion: Vec2::ZERO,
+            scroll: Vec2::ZERO,
         }
     }
 }

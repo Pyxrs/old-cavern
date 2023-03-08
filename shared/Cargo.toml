@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 log = "0.4"
-cgmath = "0.18"
+glam = "0.23"
 toml = "0.7"
 serde = "1.0"
 byte = "0.2"

@@ -4,9 +4,10 @@ use std::{
 };
 
 use shared::{
-    extra::{
-        debug,
-        server::{self, Server}, SendMode,
+    log::debug,
+    network::{
+        server::{self, Server},
+        SendMode,
     },
     packets::Packet,
     Ignore, Module,

@@ -1,12 +1,20 @@
 use std::{collections::HashMap, iter, num::NonZeroU32, time::Instant};
 
-use shared::{extra::Vector3, resources, util::GetOrInsert, addons::AddonManager, direction::Direction};
+use shared::{
+    addons::AddonManager,
+    math::{Mat4, Vec3},
+    resources,
+    util::GetOrInsert,
+};
 use wgpu::{util::DeviceExt, Backends, Features, InstanceDescriptor, TextureView};
 use winit::window::Window;
 
-use crate::{config::Config, mesher::quad::{block_quad, Quad}};
+use crate::{config::Config, mesher::chunk::generate_mesh};
 
-use self::{uniforms::{CameraUniform, SkyUniform}, vertex::Vertex};
+use self::{
+    uniforms::{CameraUniform, SkyUniform},
+    vertex::{Vertex, SkyboxVertex, SKYBOX_VERTICES},
+};
 
 use super::{
     camera::{Camera, CameraController},
@@ -17,12 +25,12 @@ mod uniforms;
 pub mod vertex;
 
 #[rustfmt::skip]
-pub const OPENGL_TO_WGPU_MATRIX: shared::extra::Matrix4<f32> = shared::extra::Matrix4::new(
+pub const OPENGL_TO_WGPU_MATRIX: Mat4 = Mat4::from_cols_array(&[
     1.0, 0.0, 0.0, 0.0,
     0.0, 1.0, 0.0, 0.0,
     0.0, 0.0, 0.5, 0.0,
     0.0, 0.0, 0.5, 1.0,
-);
+]);
 
 pub struct WindowSurface {
     start: Instant,
@@ -35,6 +43,9 @@ pub struct WindowSurface {
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     num_indices: u32,
+    skybox_render_pipeline: wgpu::RenderPipeline,
+    skybox_vertex_buffer: wgpu::Buffer,
+    num_skybox_vertices: u32,
     texture_bind_group: wgpu::BindGroup,
     camera: Camera,
     pub camera_controller: CameraController,
@@ -50,7 +61,11 @@ pub struct WindowSurface {
 
 impl WindowSurface {
     #[profiling::function]
-    pub async fn new(window: Window, client_config: &Config, addon_manager: &AddonManager) -> Self {
+    pub async fn new(
+        window: Window,
+        client_config: &Config,
+        _addon_manager: &AddonManager,
+    ) -> Self {
         let start = Instant::now();
         let size = window.inner_size();
 
@@ -58,7 +73,7 @@ impl WindowSurface {
             backends: Backends::PRIMARY,
             dx12_shader_compiler: wgpu::Dx12Compiler::Fxc,
         });
-        
+
         let surface = unsafe { instance.create_surface(&window) }.unwrap();
 
         let adapter = instance
@@ -102,7 +117,7 @@ impl WindowSurface {
 
         let mut texture_index: Vec<Texture> = vec![];
         let mut textures: HashMap<String, HashMap<String, usize>> = HashMap::new();
-        
+
         for entry in resources::read_dir(&client_config.addons.0).unwrap() {
             let file_name = entry.as_ref().unwrap().file_name();
             let namespace = file_name.to_str().unwrap();
@@ -115,7 +130,6 @@ impl WindowSurface {
                 let bytes = resources::read_dir_entry_bytes(texture.as_ref().unwrap(), Some("png"));
 
                 if let Ok(bytes) = bytes {
-
                     let texture = Texture::from_bytes(
                         &device,
                         &queue,
@@ -129,7 +143,6 @@ impl WindowSurface {
                     textures
                         .get_or_insert(namespace, HashMap::new())
                         .insert(name.to_string(), texture_index.len() - 1);
-
                 }
             }
         }
@@ -175,74 +188,13 @@ impl WindowSurface {
             label: Some("texture_bind_group"),
         });
 
-        // ============================= QUADS =============================
-        #[profiling::function]
-        fn quad(
-            addon_manager: &AddonManager,
-            textures: &HashMap<String, HashMap<String, usize>>,
-            position: Vector3<f32>,
-            direction: Direction,
-            index: u16,
-        ) -> Quad {
-            block_quad(addon_manager, textures, "example", 0, position, direction, index)
-        }
-
-        let quads = [
-            quad(
-                &addon_manager,
-                &textures,
-                Vector3::new(0.0, 0.5, 0.0),
-                Direction::UP,
-                0,
-            ),
-            quad(
-                &addon_manager,
-                &textures,
-                Vector3::new(0.0, -0.5, 0.0),
-                Direction::DOWN,
-                1,
-            ),
-            quad(
-                &addon_manager,
-                &textures,
-                Vector3::new(0.0, 0.0, -0.5),
-                Direction::NORTH,
-                2,
-            ),
-            quad(
-                &addon_manager,
-                &textures,
-                Vector3::new(0.0, 0.0, 0.5),
-                Direction::SOUTH,
-                3,
-            ),
-            quad(
-                &addon_manager,
-                &textures,
-                Vector3::new(-0.5, 0.0, 0.0),
-                Direction::WEST,
-                4,
-            ),
-            quad(
-                &addon_manager,
-                &textures,
-                Vector3::new(0.5, 0.0, 0.0),
-                Direction::EAST,
-                5,
-            ),
-        ];
-
         let mut vertices = vec![];
-        let mut indices: Vec<u16> = vec![];
+        let mut indices = vec![];
 
-        for quad in quads {
-            for vertex in quad.vertices {
-                vertices.push(vertex);
-            }
-            for index in quad.indices {
-                indices.push(index);
-            }
-        }
+        let mesh = generate_mesh(Vec3::new(-16.0, -16.0, -16.0));
+        vertices.extend(mesh.0);
+        indices.extend(mesh.1);
+
         // ============================= QUADS =============================
 
         let sky_uniform = SkyUniform::new();
@@ -250,11 +202,10 @@ impl WindowSurface {
         let camera = Camera {
             eye: (0.0, 5.0, 10.0).into(),
             target: (0.0, 0.0, 0.0).into(),
-            up: Vector3::unit_y(),
+            up: Vec3::Y,
             aspect: config.width as f32 / config.height as f32,
             fovy: 45.0,
             znear: 0.1,
-            zfar: 100.0,
         };
         let camera_controller = CameraController::new(0.2);
 
@@ -321,63 +272,31 @@ impl WindowSurface {
             label: Some("sky_bind_group"),
         });
 
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Shader"),
-            source: wgpu::ShaderSource::Wgsl(client_config.shader.0.clone().into()),
-        });
-
         let depth_texture = Texture::create_depth_texture(&device, &config, "depth_texture");
 
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[&texture_bind_group_layout, &camera_bind_group_layout, &sky_bind_group_layout],
+                bind_group_layouts: &[
+                    &texture_bind_group_layout,
+                    &camera_bind_group_layout,
+                    &sky_bind_group_layout,
+                ],
                 push_constant_ranges: &[],
             });
 
-        let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Render Pipeline"),
-            layout: Some(&render_pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: "vs_main",
-                buffers: &[Vertex::desc()],
+        let render_pipeline = create_pipeline(
+            true,
+            &device,
+            &render_pipeline_layout,
+            &[Vertex::desc()],
+            config.format,
+            client_config.debug.0,
+            wgpu::ShaderModuleDescriptor {
+                label: Some("Shader"),
+                source: wgpu::ShaderSource::Wgsl(client_config.shaders.0.clone().into()),
             },
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: "fs_main",
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: config.format,
-                    blend: Some(wgpu::BlendState {
-                        color: wgpu::BlendComponent::REPLACE,
-                        alpha: wgpu::BlendComponent::REPLACE,
-                    }),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: Some(wgpu::Face::Back),
-                polygon_mode: client_config.debug.0,
-                unclipped_depth: false,
-                conservative: false,
-            },
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: Texture::DEPTH_FORMAT,
-                depth_write_enabled: true,
-                depth_compare: wgpu::CompareFunction::Less,
-                stencil: wgpu::StencilState::default(),
-                bias: wgpu::DepthBiasState::default(),
-            }),
-            multisample: wgpu::MultisampleState {
-                count: 1,
-                mask: !0,
-                alpha_to_coverage_enabled: false,
-            },
-            multiview: None,
-        });
+        );
 
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
@@ -391,6 +310,36 @@ impl WindowSurface {
         });
         let num_indices = indices.len() as u32;
 
+        let skybox_render_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Render Pipeline Layout"),
+                bind_group_layouts: &[
+                    &camera_bind_group_layout,
+                    &sky_bind_group_layout,
+                ],
+                push_constant_ranges: &[],
+            });
+
+        let skybox_render_pipeline = create_pipeline(
+            false,
+            &device,
+            &skybox_render_pipeline_layout,
+            &[SkyboxVertex::desc()],
+            config.format,
+            wgpu::PolygonMode::Fill,
+            wgpu::ShaderModuleDescriptor {
+                label: Some("Shader"),
+                source: wgpu::ShaderSource::Wgsl(client_config.shaders.1.clone().into()),
+            },
+        );
+
+        let skybox_vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Vertex Buffer"),
+            contents: bytemuck::cast_slice(SKYBOX_VERTICES),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+        let num_skybox_vertices = SKYBOX_VERTICES.len() as u32;
+
         Self {
             start,
             surface,
@@ -402,6 +351,9 @@ impl WindowSurface {
             vertex_buffer,
             index_buffer,
             num_indices,
+            skybox_render_pipeline,
+            skybox_vertex_buffer,
+            num_skybox_vertices,
             texture_bind_group,
             camera,
             camera_controller,
@@ -491,14 +443,24 @@ impl WindowSurface {
                     stencil_ops: None,
                 }),
             });
+            
+            // Skybox
+            render_pass.set_pipeline(&self.skybox_render_pipeline);
+            render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
+            render_pass.set_bind_group(1, &self.sky_bind_group, &[]); // TODO REORDER
+            render_pass.set_vertex_buffer(0, self.skybox_vertex_buffer.slice(..));
+            render_pass.draw(0..self.num_skybox_vertices, 0..1);
 
+            // World
             render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.set_bind_group(2, &self.sky_bind_group, &[]); // TODO REORDER
-            render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
             render_pass.set_bind_group(0, &self.texture_bind_group, &[]);
+            render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
+            render_pass.set_bind_group(2, &self.sky_bind_group, &[]); // TODO REORDER
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+            render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
             render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
+
+            
         }
 
         self.queue.submit(iter::once(encoder.finish()));
@@ -506,4 +468,60 @@ impl WindowSurface {
 
         Ok(())
     }
+}
+
+fn create_pipeline(
+    depth: bool,
+    device: &wgpu::Device,
+    layout: &wgpu::PipelineLayout,
+    vertex_layouts: &[wgpu::VertexBufferLayout],
+    color_format: wgpu::TextureFormat,
+    polygon_mode: wgpu::PolygonMode,
+    shader: wgpu::ShaderModuleDescriptor,
+) -> wgpu::RenderPipeline {
+    let shader = device.create_shader_module(shader);
+
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("Render Pipeline"),
+        layout: Some(layout),
+        vertex: wgpu::VertexState {
+            module: &shader,
+            entry_point: "vs_main",
+            buffers: vertex_layouts,
+        },
+        fragment: Some(wgpu::FragmentState {
+            module: &shader,
+            entry_point: "fs_main",
+            targets: &[Some(wgpu::ColorTargetState {
+                format: color_format,
+                blend: Some(wgpu::BlendState {
+                    color: wgpu::BlendComponent::REPLACE,
+                    alpha: wgpu::BlendComponent::REPLACE,
+                }),
+                write_mask: wgpu::ColorWrites::ALL,
+            })],
+        }),
+        primitive: wgpu::PrimitiveState {
+            topology: wgpu::PrimitiveTopology::TriangleList,
+            strip_index_format: None,
+            front_face: wgpu::FrontFace::Ccw,
+            cull_mode: Some(wgpu::Face::Back),
+            polygon_mode,
+            unclipped_depth: false,
+            conservative: false,
+        },
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: Texture::DEPTH_FORMAT,
+            depth_write_enabled: depth,
+            depth_compare: wgpu::CompareFunction::Less,
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState::default(),
+        }),
+        multisample: wgpu::MultisampleState {
+            count: 1,
+            mask: !0,
+            alpha_to_coverage_enabled: false,
+        },
+        multiview: None,
+    })
 }

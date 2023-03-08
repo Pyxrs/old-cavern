@@ -1,13 +1,14 @@
 use std::{thread, vec};
 
 use client::{
-    config::{ClientAddons, Debug, Gamma, MeshingDistance, PolygonMode, Shader},
+    config::{ClientAddons, Debug, Gamma, MeshingDistance, PolygonMode, Shaders},
     input::{InputType, Key},
 };
 use server::config::{LoadingDistance, SimulationDistance, ServerAddons};
-use shared::{extra::{LevelFilter, info}, resources};
+use shared::{log::{LevelFilter, info}, resources};
 use simple_logger::SimpleLogger;
 
+#[profiling::function]
 fn main() {
     // Run `cargo run --features=profile` to profile using optick
     if cfg!(feature = "profile") {
@@ -43,7 +44,10 @@ fn main() {
     
     client::init(
         client::config::Config {
-            shader: Shader(resources::read_string("example/shader.wgsl").unwrap()),
+            shaders: Shaders(
+                resources::read_string("example/world_shader.wgsl").unwrap(),
+                resources::read_string("example/skybox_shader.wgsl").unwrap(),
+            ),
             addons: ClientAddons("example/addons/".to_string()),
             debug: Debug(PolygonMode::Fill),
             meshing_distance: MeshingDistance(12),

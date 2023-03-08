@@ -1,13 +1,13 @@
-use shared::extra::{Vector3, Zero};
+use shared::math::Vec3;
 
 pub struct Player {
-    pub position: Vector3<f32>,
+    pub position: Vec3,
 }
 
 impl Player {
     pub fn new() -> Self {
         Self {
-            position: Vector3::zero()
+            position: Vec3::ZERO
         }
     }
 }

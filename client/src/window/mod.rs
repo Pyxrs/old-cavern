@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use pollster::block_on;
-use shared::{extra::warn, util::ThisOrThat, StaticModule};
+use shared::{util::ThisOrThat, StaticModule, log::warn};
 use winit::{
     event::{ElementState, Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},

@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::Path};
+use std::{collections::HashMap, path::Path, borrow::Cow};
 
 use mlua::{Lua, Table};
 
@@ -11,6 +11,7 @@ pub struct AddonManager {
 }
 
 impl Default for AddonManager {
+    #[profiling::function]
     fn default() -> Self {
         Self {
             addons: vec![],
@@ -25,10 +26,11 @@ impl AddonManager {
         let mut manager = Self::default();
 
         for entry in resources::read_dir(addon_path).unwrap() {
+            let namespace = entry.as_ref().unwrap().file_name();
             let addon = Addon::new();
             manager.addons.push(addon);
             
-            manager.load_blocks(entry.unwrap().path());
+            manager.load_blocks(namespace.to_string_lossy(), entry.unwrap().path());
             // TODO: Make load items function
         }
 
@@ -49,10 +51,11 @@ impl AddonManager {
     #[profiling::function]
     pub fn get_block_texture(&self, index: &Id, direction: &Direction) -> String {
         let block = self.get(index);
-        let textures: Table = block.get("textures").unwrap();
+        let textures = 0.0;//: Table = block.get("textures").unwrap();
 
-        fn face(direction: String, textures: &Table, side: bool) -> String {
-            if let Ok(up) = textures.get(direction) {
+        fn face(direction: String, textures: /*&Table*/&f64, side: bool) -> String {
+            String::from("grass_top") // TODO: Reenable once model support is done
+            /*if let Ok(up) = textures.get(direction) {
                 return up;
             }
             if side {
@@ -60,7 +63,7 @@ impl AddonManager {
                     return side;
                 }
             }
-            textures.get("all").unwrap()
+            textures.get("all").unwrap()*/
         }
 
         match direction {
@@ -71,7 +74,7 @@ impl AddonManager {
     }
 
     #[profiling::function]
-    fn load_blocks(&mut self, path: impl AsRef<Path>) { // TODO: More verbose errors
+    fn load_blocks(&mut self, namespace: Cow<str>, path: impl AsRef<Path>) { // TODO: More verbose errors
         for entry in resources::read_dir(path.as_ref().join("blocks")).unwrap() {
             let Ok(code) = resources::read_dir_entry_string(entry.as_ref().unwrap(), Some("lua")) else { continue };
 
@@ -106,11 +109,10 @@ impl AddonManager {
 
             // Parse output
             let block: Table = lua.globals().get("Block").unwrap();
-            let namespace = block.get("namespace").unwrap();
             let id = block.get("id").unwrap();
             drop(block);
 
-            self.data.insert(Id::new(Type::Block, namespace, id), lua);
+            self.data.insert(Id::new(Type::Block, namespace.to_string(), id), lua);
         }
     }
 }

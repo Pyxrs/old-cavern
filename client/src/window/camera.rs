@@ -1,30 +1,29 @@
-use shared::extra::{perspective, Deg, InnerSpace, Matrix4, Point3, Vector3};
+use shared::math::{Mat4, Vec3};
 
 use crate::input::Input;
 
 #[rustfmt::skip]
-pub const OPENGL_TO_WGPU_MATRIX: Matrix4<f32> = Matrix4::new(
+pub const OPENGL_TO_WGPU_MATRIX: Mat4 = Mat4::from_cols_array(&[
     1.0, 0.0, 0.0, 0.0,
     0.0, 1.0, 0.0, 0.0,
     0.0, 0.0, 0.5, 0.0,
     0.0, 0.0, 0.5, 1.0,
-);
+]);
 
 pub struct Camera {
-    pub eye: Point3<f32>,
-    pub target: Point3<f32>,
-    pub up: Vector3<f32>,
+    pub eye: Vec3,
+    pub target: Vec3,
+    pub up: Vec3,
     pub aspect: f32,
     pub fovy: f32,
     pub znear: f32,
-    pub zfar: f32,
 }
 
 impl Camera {
     #[profiling::function]
-    pub fn build_view_projection_matrix(&self) -> Matrix4<f32> {
-        let view = Matrix4::look_at_rh(self.eye, self.target, self.up);
-        let proj = perspective(Deg(self.fovy), self.aspect, self.znear, self.zfar);
+    pub fn build_view_projection_matrix(&self) -> Mat4 {
+        let view = Mat4::look_at_rh(self.eye, self.target, self.up);
+        let proj = Mat4::perspective_infinite_rh(self.fovy.to_radians(), self.aspect, self.znear);
         proj * view
     }
 }
@@ -90,7 +89,7 @@ impl CameraController {
 
         // Redo radius calc in case the up/ down is pressed.
         let forward = camera.target - camera.eye;
-        let forward_mag = forward.magnitude();
+        let forward_mag = forward.length();
 
         if self.is_right_pressed {
             // Rescale the distance between the target and eye so
