@@ -1,5 +1,7 @@
+// TODO: Rewrite to be like client
+
 use config::Config;
-use shared::addons::AddonManager;
+use shared::registry::Registry;
 
 pub mod pathfinding;
 pub mod terrain;
@@ -8,7 +10,7 @@ pub mod network;
 
 pub struct Server {
     pub config: Config,
-    pub addon_manager: AddonManager,
+    //pub registry: Registry<D>,
 }
 
 pub struct ServerIO {
@@ -20,11 +22,11 @@ where
     I: FnOnce(&mut Server, &ServerIO, ()) -> S,
     F: Fn(&mut S, &mut Server, &ServerIO),
 {
-    let addon_manager = AddonManager::load(config.addons.0.clone());
+    //let registry = Registry::new();
 
     let mut server = Server {
         config,
-        addon_manager
+        //registry,
     };
 
     let server_io = ServerIO {
@@ -33,6 +35,10 @@ where
     let mut state = init(&mut server, &server_io, ());
 
     loop {
-        frame(&mut state, &mut server, &server_io)
+        tick(&frame, &mut state, &mut server, &server_io);
     }
+}
+
+fn tick<F, S>(frame: &F, state: &mut S, server: &mut Server, server_io: &ServerIO) where F: Fn(&mut S, &mut Server, &ServerIO) {
+    frame(state, server, server_io);
 }

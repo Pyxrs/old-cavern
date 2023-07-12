@@ -4,7 +4,9 @@ resolver = "2"
 
 members = [
     "client",
+    "client_macros",
     "server",
+    "server_macros",
     "shared",
     "example",
 ]

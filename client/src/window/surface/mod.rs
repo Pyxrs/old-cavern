@@ -1,19 +1,21 @@
 use std::{collections::HashMap, iter, num::NonZeroU32, time::Instant};
 
 use shared::{
-    addons::AddonManager,
     math::{Mat4, Vec3},
-    resources,
     util::GetOrInsert,
 };
 use wgpu::{util::DeviceExt, Backends, Features, InstanceDescriptor, TextureView};
 use winit::window::Window;
 
-use crate::{config::Config, mesher::chunk::generate_mesh};
+use crate::{
+    config::Config,
+    mesher::chunk::{generate_mesh, Voxel, CHUNK_SIZE},
+    Resources,
+};
 
 use self::{
     uniforms::{CameraUniform, SkyUniform},
-    vertex::{Vertex, SkyboxVertex, SKYBOX_VERTICES},
+    vertex::{SkyboxVertex, Vertex, SKYBOX_VERTICES},
 };
 
 use super::{
@@ -61,11 +63,7 @@ pub struct WindowSurface {
 
 impl WindowSurface {
     #[profiling::function]
-    pub async fn new(
-        window: Window,
-        client_config: &Config,
-        _addon_manager: &AddonManager,
-    ) -> Self {
+    pub async fn new(window: Window, client_config: &Config, resources: Resources) -> Self {
         let start = Instant::now();
         let size = window.inner_size();
 
@@ -118,33 +116,12 @@ impl WindowSurface {
         let mut texture_index: Vec<Texture> = vec![];
         let mut textures: HashMap<String, HashMap<String, usize>> = HashMap::new();
 
-        for entry in resources::read_dir(&client_config.addons.0).unwrap() {
-            let file_name = entry.as_ref().unwrap().file_name();
-            let namespace = file_name.to_str().unwrap();
-            let textures_folder = entry.unwrap().path().join("textures");
+        for ((namespace, name), texture) in resources.textures {
+            texture_index.push(texture);
 
-            for texture in resources::read_dir(textures_folder).unwrap() {
-                let file_name = texture.as_ref().unwrap().file_name();
-                let name = file_name.to_str().unwrap().split_once(".").unwrap().0;
-
-                let bytes = resources::read_dir_entry_bytes(texture.as_ref().unwrap(), Some("png"));
-
-                if let Ok(bytes) = bytes {
-                    let texture = Texture::from_bytes(
-                        &device,
-                        &queue,
-                        &bytes,
-                        &format!("{}:{}", namespace, name),
-                    )
-                    .unwrap();
-
-                    texture_index.push(texture);
-
-                    textures
-                        .get_or_insert(namespace, HashMap::new())
-                        .insert(name.to_string(), texture_index.len() - 1);
-                }
-            }
+            textures
+                .get_or_insert(namespace, HashMap::new())
+                .insert(name.to_string(), texture_index.len() - 1);
         }
 
         let views: Vec<&TextureView> = texture_index.iter().map(|e| &e.view).collect();
@@ -191,7 +168,10 @@ impl WindowSurface {
         let mut vertices = vec![];
         let mut indices = vec![];
 
-        let mesh = generate_mesh(Vec3::new(-16.0, -16.0, -16.0));
+        let mesh = generate_mesh(
+            Vec3::new(-16.0, -16.0, -16.0),
+            &[Voxel(0); CHUNK_SIZE as usize],
+        );
         vertices.extend(mesh.0);
         indices.extend(mesh.1);
 
@@ -294,7 +274,7 @@ impl WindowSurface {
             client_config.debug.0,
             wgpu::ShaderModuleDescriptor {
                 label: Some("Shader"),
-                source: wgpu::ShaderSource::Wgsl(client_config.shaders.0.clone().into()),
+                source: wgpu::ShaderSource::Wgsl(resources.world_shader.into()),
             },
         );
 
@@ -313,10 +293,7 @@ impl WindowSurface {
         let skybox_render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[
-                    &camera_bind_group_layout,
-                    &sky_bind_group_layout,
-                ],
+                bind_group_layouts: &[&camera_bind_group_layout, &sky_bind_group_layout],
                 push_constant_ranges: &[],
             });
 
@@ -329,7 +306,7 @@ impl WindowSurface {
             wgpu::PolygonMode::Fill,
             wgpu::ShaderModuleDescriptor {
                 label: Some("Shader"),
-                source: wgpu::ShaderSource::Wgsl(client_config.shaders.1.clone().into()),
+                source: wgpu::ShaderSource::Wgsl(resources.skybox_shader.into()),
             },
         );
 
@@ -396,7 +373,6 @@ impl WindowSurface {
             bytemuck::cast_slice(&[self.camera_uniform]),
         );
 
-        // TODO: Sky updates
         self.sky_uniform.update_sun(self.start);
         self.queue.write_buffer(
             &self.sky_buffer,
@@ -443,11 +419,11 @@ impl WindowSurface {
                     stencil_ops: None,
                 }),
             });
-            
+
             // Skybox
             render_pass.set_pipeline(&self.skybox_render_pipeline);
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
-            render_pass.set_bind_group(1, &self.sky_bind_group, &[]); // TODO REORDER
+            render_pass.set_bind_group(1, &self.sky_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.skybox_vertex_buffer.slice(..));
             render_pass.draw(0..self.num_skybox_vertices, 0..1);
 
@@ -455,12 +431,10 @@ impl WindowSurface {
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_bind_group(0, &self.texture_bind_group, &[]);
             render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
-            render_pass.set_bind_group(2, &self.sky_bind_group, &[]); // TODO REORDER
+            render_pass.set_bind_group(2, &self.sky_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
             render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
-
-            
         }
 
         self.queue.submit(iter::once(encoder.finish()));

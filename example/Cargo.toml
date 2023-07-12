@@ -7,7 +7,9 @@ edition = "2021"
 
 [dependencies]
 client = { path = "../client" }
+client_macros = { path = "../client_macros" }
 server = { path = "../server" }
+server_macros = { path = "../server_macros" }
 shared = { path = "../shared" }
 
 simple_logger = "4.0"

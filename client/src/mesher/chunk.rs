@@ -7,11 +7,11 @@ use shared::math::{UVec4, UVec2, Vec3};
 
 use crate::window::surface::vertex::Vertex;
 
-type ChunkShape = ConstShape3u32<32, 32, 32>;
-const CHUNK_SIZE: u32 = ChunkShape::SIZE;
+pub type ChunkShape = ConstShape3u32<32, 32, 32>;
+pub const CHUNK_SIZE: u32 = ChunkShape::SIZE;
 
 #[derive(Clone, Copy, Eq, PartialEq)]
-struct Voxel(pub u32);
+pub struct Voxel(pub u32);
 
 impl block_mesh::Voxel for Voxel {
     #[profiling::function]
@@ -26,8 +26,8 @@ impl block_mesh::Voxel for Voxel {
 }
 
 #[profiling::function]
-pub fn generate_mesh(chunk_position: Vec3) -> (Vec<Vertex>, Vec<u32>) {
-    let buffer = generate_faces();
+pub fn generate_mesh(chunk_position: Vec3, voxels: &[Voxel; CHUNK_SIZE as usize]) -> (Vec<Vertex>, Vec<u32>) {
+    let buffer = generate_faces(voxels);
 
     let num_indices = buffer.num_quads() * 6;
     let num_vertices = buffer.num_quads() * 4;
@@ -48,7 +48,7 @@ pub fn generate_mesh(chunk_position: Vec3) -> (Vec<Vertex>, Vec<u32>) {
                     position[1] + chunk_position.y,
                     position[2] + chunk_position.z,
                 ];
-                vertices.push(generate_vertex(i, offset_position, normals[i]));
+                vertices.push(generate_vertex(0, i, offset_position, normals[i])); // TODO: get voxel data texture id
             }
         }
     }
@@ -57,10 +57,9 @@ pub fn generate_mesh(chunk_position: Vec3) -> (Vec<Vertex>, Vec<u32>) {
 }
 
 #[profiling::function]
-fn generate_faces() -> UnitQuadBuffer {
+fn generate_faces(voxels: &[Voxel; CHUNK_SIZE as usize]) -> UnitQuadBuffer {
     // This chunk will cover just a single octant of a sphere SDF (radius 15).
-    let mut voxels = [Voxel(0); CHUNK_SIZE as usize];
-    for i in 0..CHUNK_SIZE {
+    /*for i in 0..CHUNK_SIZE {
         let [x, y, z] = ChunkShape::delinearize(i);
         let x = x as i32 - 15;
         let y = y as i32 - 15;
@@ -70,11 +69,11 @@ fn generate_faces() -> UnitQuadBuffer {
         } else {
             Voxel(0)
         };
-    }
+    }*/
 
     let mut buffer = UnitQuadBuffer::new();
     visible_block_faces(
-        &voxels,
+        voxels,
         &ChunkShape {},
         [0; 3],
         [31; 3],
@@ -85,7 +84,7 @@ fn generate_faces() -> UnitQuadBuffer {
     buffer
 }
 
-fn generate_vertex(index: usize, position: [f32; 3], normal: [f32; 3]) -> Vertex {
+fn generate_vertex(texture_index: u32, index: usize, position: [f32; 3], normal: [f32; 3]) -> Vertex {
     let data = Vertex::encode(
         UVec4::new(0, 0, 0, 15),
         match index {
@@ -100,7 +99,7 @@ fn generate_vertex(index: usize, position: [f32; 3], normal: [f32; 3]) -> Vertex
     Vertex {
         position,
         normal,
-        texture_index: 3, // TODO: Get block
+        texture_index, // TODO: Get block
         data,
     }
 }

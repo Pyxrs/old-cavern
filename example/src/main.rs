@@ -1,11 +1,11 @@
 use std::{thread, vec};
 
 use client::{
-    config::{ClientAddons, Debug, Gamma, MeshingDistance, PolygonMode, Shaders},
-    input::{InputType, Key},
+    config::{Debug, Gamma, MeshingDistance, PolygonMode},
+    input::{InputType, Key}, Resources, declare_block,
 };
-use server::config::{LoadingDistance, SimulationDistance, ServerAddons};
-use shared::{log::{LevelFilter, info}, resources};
+use server::config::{LoadingDistance, SimulationDistance};
+use shared::{log::{LevelFilter, info}, resources, types::item::Item};
 use simple_logger::SimpleLogger;
 
 #[profiling::function]
@@ -27,11 +27,10 @@ fn main() {
         .unwrap();
 
     // Server
-    thread::spawn(|| {
+    /*thread::spawn(|| {
         profiling::register_thread!("Server");
         server::init(
             server::config::Config {
-                addons: ServerAddons("example/addons/".to_string()),
                 loading_distance: LoadingDistance(12),
                 simulation_distance: SimulationDistance(14),
             },
@@ -44,11 +43,6 @@ fn main() {
     
     client::init(
         client::config::Config {
-            shaders: Shaders(
-                resources::read_string("example/world_shader.wgsl").unwrap(),
-                resources::read_string("example/skybox_shader.wgsl").unwrap(),
-            ),
-            addons: ClientAddons("example/addons/".to_string()),
             debug: Debug(PolygonMode::Fill),
             meshing_distance: MeshingDistance(12),
             gamma: Gamma(1.0),
@@ -67,9 +61,18 @@ fn main() {
         |_state, _client, _client_io| {
         },
         |_state, _client, _client_io| {
+            let textures = vec![]; // TODO: load textures
+
+            Resources {
+                world_shader: resources::read_string("example/world_shader.wgsl").unwrap(),
+                skybox_shader: resources::read_string("example/skybox_shader.wgsl").unwrap(),
+                textures,
+            }
+        },
+        |_state, _client, _client_io| {
             if cfg!(feature = "profile") {
                 optick::stop_capture("Profile");
             }
         },
-    );
+    );*/
 }

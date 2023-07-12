@@ -3,5 +3,9 @@
         "namespace",
         "Pathfinding",
         "Neighbor"
-    ]
+    ],
+    "rust-analyzer.linkedProjects": [
+        ".\\client\\Cargo.toml"
+    ],
+    "rust-analyzer.showUnlinkedFileNotification": false
 }

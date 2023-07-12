@@ -1,7 +1,10 @@
+use std::hash::Hash;
 use std::time::Instant;
 
 use pollster::block_on;
-use shared::{util::ThisOrThat, StaticModule, log::warn};
+use shared::types::{block::Block, item::Item};
+use shared::{log::warn, util::ThisOrThat, StaticModule};
+use std::fmt::Debug;
 use winit::{
     event::{ElementState, Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
@@ -10,14 +13,14 @@ use winit::{
 
 use crate::{
     input::{Input, InputInfo, Key},
-    Client, ClientIO,
+    Client, ClientIO, Resources,
 };
 
 use self::surface::WindowSurface;
 
 pub mod camera;
 pub mod surface;
-mod texture;
+pub mod texture;
 
 pub struct Window {
     pub info: WindowInfo,
@@ -43,21 +46,33 @@ impl StaticModule<(), ()> for Window {
 
 impl Window {
     #[profiling::function]
-    pub fn run<F, E, S: 'static>(
+    pub fn run<
+        S: 'static,
+        T: Debug + Eq + Hash + PartialEq + 'static,
+        B: Block + 'static,
+        I: Item + 'static,
+        D: 'static,
+        F,
+        E,
+        R: Fn(&mut S, &mut Client<T, B, I, D>, &ClientIO) -> Resources + 'static,
+    >(
         mut self,
-        (mut game_state, mut client, client_io, frame, exit): (S, Client, ClientIO, F, E),
+        (mut game_state, mut client, client_io, frame, exit, resources): (
+            S,
+            Client<T, B, I, D>,
+            ClientIO,
+            F,
+            E,
+            Resources,
+        ),
     ) where
-        F: Fn(&mut S, &mut Client, &ClientIO) + 'static,
-        E: Fn(&mut S, &mut Client, &ClientIO) + 'static,
+        F: Fn(&mut S, &mut Client<T, B, I, D>, &ClientIO) + 'static,
+        E: Fn(&mut S, &mut Client<T, B, I, D>, &ClientIO) + 'static,
     {
         let event_loop = EventLoop::new();
         let window = WindowBuilder::new().build(&event_loop).unwrap();
 
-        let mut state = block_on(WindowSurface::new(
-            window,
-            &client.config,
-            &client.addon_manager,
-        ));
+        let mut state = block_on(WindowSurface::new(window, &client.config, resources));
         let mut last_render_time = Instant::now();
 
         event_loop.run(move |event, _, control_flow| match event {
@@ -79,7 +94,7 @@ impl Window {
                     WindowEvent::CloseRequested => {
                         exit(&mut game_state, &mut client, &client_io);
                         *control_flow = ControlFlow::Exit
-                    },
+                    }
                     WindowEvent::Resized(physical_size) => state.resize(*physical_size),
                     WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
                         state.resize(**new_inner_size)
@@ -116,7 +131,7 @@ impl Window {
                     Err(wgpu::SurfaceError::OutOfMemory) => {
                         exit(&mut game_state, &mut client, &client_io);
                         *control_flow = ControlFlow::Exit
-                    },
+                    }
                     Err(wgpu::SurfaceError::Timeout) => warn!("Surface timeout"),
                     _ => {}
                 };

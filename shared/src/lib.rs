@@ -1,4 +1,4 @@
-use std::sync::mpsc::{Sender, Receiver};
+use std::sync::mpsc::{Receiver, Sender};
 
 pub use log;
 pub mod network {
@@ -8,13 +8,13 @@ pub mod math {
     pub use glam::*;
 }
 
-pub mod packets;
-pub mod types;
-pub mod addons;
 pub mod broadcast;
 pub mod direction;
 pub mod model;
+pub mod packets;
+pub mod registry;
 pub mod resources;
+pub mod types;
 pub mod util;
 
 pub trait StaticModule<I, A> {
@@ -47,7 +47,10 @@ impl<R, P> Query<R, P> {
     }
 
     #[profiling::function]
-    pub fn update<F>(&mut self, send: F) where F: Fn(R) -> P {
+    pub fn update<F>(&mut self, send: F)
+    where
+        F: Fn(R) -> P,
+    {
         for request in self.local_request.try_iter() {
             let _ = self.local_payload.send(send(request));
         }
@@ -59,6 +62,5 @@ pub trait Ignore {
 }
 
 impl<E> Ignore for Result<(), E> {
-    fn ignore(self) {
-    }
+    fn ignore(self) {}
 }
